@@ -25,6 +25,16 @@ uv run soundboard config set-device "VoiceMeeter Input (VB-Audio Voicemeeter VAI
 uv run soundboard config set-device --clear    # back to system default
 ```
 
+## Grabbing clips from YouTube
+
+Requires `ffmpeg` on PATH (yt-dlp uses it for the time-range extraction and mp3 conversion).
+
+```bash
+uv run soundboard fetch "https://youtu.be/XYZ" --start 1:23 --end 1:30 --name horn --tag funny
+```
+
+Timecodes accept `SS`, `MM:SS`, or `H:MM:SS` (fractional seconds OK). Omit `--start`/`--end` to pull the full audio. Personal use only — respect the source's licensing.
+
 ## Routing into a virtual meeting (Teams, Zoom, Meet…)
 
 Meeting apps accept a single "microphone" input, so to have them hear both your voice and the soundboard you need an external routing tool that mixes them and exposes the result as a virtual mic. Once that tool is running, point the soundboard at its **virtual input** with `soundboard config set-device "<name>"` so non-soundboard audio (music, system sounds) does not leak into the call.

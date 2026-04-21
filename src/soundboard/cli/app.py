@@ -13,6 +13,7 @@ from rich.console import Console
 from rich.table import Table
 
 from soundboard.audio.devices import list_output_devices
+from soundboard.audio.fetcher import Downloader, parse_timecode, ytdlp_download
 from soundboard.audio.player import Player
 from soundboard.audio.pygame_player import PygamePlayer
 from soundboard.config import Paths, default_paths
@@ -44,6 +45,7 @@ class Context:
     settings_repository: SettingsRepository
     player_factory: PlayerFactory | None
     device_lister: Callable[[], list[str]] = list_output_devices
+    downloader: Downloader = ytdlp_download
 
 
 def _build_default_context() -> Context:
@@ -120,6 +122,62 @@ def add(
         raise typer.Exit(code=1) from e
     ctx.repository.save(library)
     console.print(f"[green]Added[/green] '{sound.name}' ([dim]{sound.id}[/dim])")
+
+
+@app.command("fetch")
+def fetch(
+    url: Annotated[str, typer.Argument(help="YouTube (or yt-dlp-supported) URL.")],
+    start: Annotated[
+        str | None, typer.Option("--start", "-s", help="Start time (SS, MM:SS, or H:MM:SS).")
+    ] = None,
+    end: Annotated[
+        str | None, typer.Option("--end", "-e", help="End time (SS, MM:SS, or H:MM:SS).")
+    ] = None,
+    name: Annotated[str | None, typer.Option("--name", "-n", help="Display name.")] = None,
+    hotkey: Annotated[str | None, typer.Option("--hotkey", "-k")] = None,
+    tag: Annotated[list[str] | None, typer.Option("--tag", "-t", help="Repeatable.")] = None,
+    volume: Annotated[float, typer.Option("--volume", "-v", min=0.0, max=1.0)] = 1.0,
+) -> None:
+    """Download a clip from a URL (YouTube et al.) and register it."""
+    ctx = _context()
+    if (start is None) != (end is None):
+        console.print("[red]--start and --end must be provided together[/red]")
+        raise typer.Exit(code=2)
+    try:
+        start_sec = parse_timecode(start) if start is not None else None
+        end_sec = parse_timecode(end) if end is not None else None
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=2) from e
+    if start_sec is not None and end_sec is not None and start_sec >= end_sec:
+        console.print("[red]start must be before end[/red]")
+        raise typer.Exit(code=2)
+
+    try:
+        downloaded = ctx.downloader(url, start_sec, end_sec, ctx.paths.sounds_dir)
+    except Exception as e:  # noqa: BLE001
+        console.print(f"[red]Download failed:[/red] {e}")
+        raise typer.Exit(code=1) from e
+
+    library = ctx.repository.load()
+    sound_id = uuid.uuid4().hex[:12]
+    stored_path = ctx.paths.sounds_dir / f"{sound_id}{downloaded.suffix}"
+    downloaded.rename(stored_path)
+    sound = Sound(
+        id=sound_id,
+        name=name or stored_path.stem,
+        path=stored_path,
+        hotkey=hotkey,
+        tags=tuple(tag or ()),
+        volume=volume,
+    )
+    try:
+        library.add(sound)
+    except SoundAlreadyExistsError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=1) from e
+    ctx.repository.save(library)
+    console.print(f"[green]Fetched[/green] '{sound.name}' ([dim]{sound.id}[/dim])")
 
 
 @app.command("edit")

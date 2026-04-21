@@ -15,6 +15,7 @@ dependencies = [
     "textual>=8.2.4",
     "tomli-w>=1.2.0",
     "typer>=0.24.1",
+    "yt-dlp>=2026.3.17",
 ]
 
 [project.scripts]

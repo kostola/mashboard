@@ -55,6 +55,10 @@ def runner() -> CliRunner:
     return CliRunner()
 
 
+def _forbidden_downloader(*_args: object, **_kwargs: object) -> Path:
+    raise AssertionError("downloader called without being overridden in the test")
+
+
 @pytest.fixture(autouse=True)
 def _isolated_context(tmp_path: Path) -> InMemorySettingsRepository:
     paths = Paths(config_dir=tmp_path / "cfg", data_dir=tmp_path / "data")
@@ -67,6 +71,7 @@ def _isolated_context(tmp_path: Path) -> InMemorySettingsRepository:
             settings_repository=settings_repo,
             player_factory=FakePlayer,
             device_lister=lambda: ["Speakers (Test)", "VoiceMeeter Input (Test)"],
+            downloader=_forbidden_downloader,
         )
     )
     FakePlayer.last_instance = None
@@ -225,6 +230,98 @@ def test_edit_no_options_is_noop(runner: CliRunner, tmp_path: Path) -> None:
     r = runner.invoke(cli_module.app, ["edit", "horn"])
     assert r.exit_code == 0
     assert "Nothing to change" in r.stdout
+
+
+def _install_downloader(
+    runner_paths: Paths, settings_repo: InMemorySettingsRepository, downloader: object
+) -> None:
+    cli_module.set_context(
+        cli_module.Context(
+            paths=runner_paths,
+            repository=TomlLibraryRepository(runner_paths.library_file),
+            settings_repository=settings_repo,
+            player_factory=FakePlayer,
+            device_lister=lambda: [],
+            downloader=downloader,  # type: ignore[arg-type]
+        )
+    )
+
+
+def test_fetch_calls_downloader_and_adds_to_library(
+    runner: CliRunner, _isolated_context: InMemorySettingsRepository
+) -> None:
+    ctx = cli_module._context()
+
+    def fake_download(url: str, start: float | None, end: float | None, dest_dir: Path) -> Path:
+        out = dest_dir / "abc123.mp3"
+        out.write_bytes(b"ID3\x00")
+        return out
+
+    _install_downloader(ctx.paths, _isolated_context, fake_download)
+
+    r = runner.invoke(cli_module.app, ["fetch", "https://example/x", "--name", "clip"])
+    assert r.exit_code == 0, r.stdout
+    assert "Fetched" in r.stdout
+
+    r = runner.invoke(cli_module.app, ["list"])
+    assert "clip" in r.stdout
+
+
+def test_fetch_with_time_range_parses_and_forwards(
+    runner: CliRunner, _isolated_context: InMemorySettingsRepository
+) -> None:
+    ctx = cli_module._context()
+    captured: dict[str, object] = {}
+
+    def spy(url: str, start: float | None, end: float | None, dest_dir: Path) -> Path:
+        captured["start"] = start
+        captured["end"] = end
+        out = dest_dir / "abc123.mp3"
+        out.write_bytes(b"ID3\x00")
+        return out
+
+    _install_downloader(ctx.paths, _isolated_context, spy)
+
+    r = runner.invoke(
+        cli_module.app,
+        ["fetch", "https://example/x", "--start", "1:23", "--end", "1:30.5", "--name", "c"],
+    )
+    assert r.exit_code == 0, r.stdout
+    assert captured["start"] == pytest.approx(83.0)
+    assert captured["end"] == pytest.approx(90.5)
+
+
+def test_fetch_invalid_range_errors(runner: CliRunner) -> None:
+    r = runner.invoke(
+        cli_module.app, ["fetch", "https://example/x", "--start", "10", "--end", "5"]
+    )
+    assert r.exit_code == 2
+    assert "start must be before end" in r.stdout
+
+
+def test_fetch_bad_timecode(runner: CliRunner) -> None:
+    r = runner.invoke(
+        cli_module.app,
+        ["fetch", "https://example/x", "--start", "not-a-time", "--end", "1:00"],
+    )
+    assert r.exit_code == 2
+    assert "invalid timecode" in r.stdout
+
+
+def test_fetch_download_failure_errors(
+    runner: CliRunner, _isolated_context: InMemorySettingsRepository
+) -> None:
+    ctx = cli_module._context()
+
+    def boom(url: str, start: float | None, end: float | None, dest_dir: Path) -> Path:
+        raise RuntimeError("network down")
+
+    _install_downloader(ctx.paths, _isolated_context, boom)
+
+    r = runner.invoke(cli_module.app, ["fetch", "https://example/x"])
+    assert r.exit_code == 1
+    assert "Download failed" in r.stdout
+    assert "network down" in r.stdout
 
 
 def test_play_uses_configured_device(
