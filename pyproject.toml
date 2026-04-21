@@ -1,0 +1,48 @@
+[project]
+name = "soundboard"
+version = "0.1.0"
+description = "Cross-interface soundboard (CLI, TUI, desktop GUI) with a shared audio/storage core."
+readme = "README.md"
+authors = [
+    { name = "Alessandro Costa", email = "alessandro.costa@ferrari.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "platformdirs>=4.9.6",
+    "pygame-ce>=2.5.7",
+    "rich>=15.0.0",
+    "tomli-w>=1.2.0",
+    "typer>=0.24.1",
+]
+
+[project.scripts]
+soundboard = "soundboard.cli.app:main"
+soundboard-tui = "soundboard.tui.app:main"
+soundboard-gui = "soundboard.gui.app:main"
+
+[build-system]
+requires = ["uv_build>=0.11.5,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.20.1",
+    "pytest>=9.0.3",
+    "pytest-mock>=3.15.1",
+    "ruff>=0.15.11",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.mypy]
+strict = true
+python_version = "3.14"
