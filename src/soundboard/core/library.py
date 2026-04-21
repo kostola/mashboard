@@ -42,6 +42,22 @@ class SoundLibrary:
         del self._by_id[sound.id]
         return sound
 
+    def update(self, sound: Sound) -> Sound:
+        """Replace the entry with the same id, preserving insertion order.
+
+        Raises SoundNotFoundError if the id is not in the library, or
+        SoundAlreadyExistsError if the updated name collides with a
+        different sound.
+        """
+        if sound.id not in self._by_id:
+            raise SoundNotFoundError(sound.id)
+        for other in self._by_id.values():
+            if other.id != sound.id and other.name == sound.name:
+                raise SoundAlreadyExistsError(sound.name)
+        previous = self._by_id[sound.id]
+        self._by_id[sound.id] = sound
+        return previous
+
     def find(self, key: str) -> Sound:
         if key in self._by_id:
             return self._by_id[key]

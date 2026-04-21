@@ -63,3 +63,35 @@ def test_get_returns_none_when_missing() -> None:
 def test_invalid_volume_rejected() -> None:
     with pytest.raises(ValueError):
         make_sound(volume=1.5)
+
+
+def test_update_replaces_in_place() -> None:
+    a = make_sound(id="a", name="one")
+    b = make_sound(id="b", name="two")
+    lib = SoundLibrary([a, b])
+    updated = make_sound(id="a", name="renamed", volume=0.5)
+    previous = lib.update(updated)
+    assert previous is a
+    assert lib.find("a") is updated
+    assert [s.name for s in lib] == ["renamed", "two"]
+
+
+def test_update_unknown_id_raises() -> None:
+    lib = SoundLibrary([make_sound()])
+    with pytest.raises(SoundNotFoundError):
+        lib.update(make_sound(id="missing"))
+
+
+def test_update_name_collision_raises() -> None:
+    a = make_sound(id="a", name="one")
+    b = make_sound(id="b", name="two")
+    lib = SoundLibrary([a, b])
+    with pytest.raises(SoundAlreadyExistsError):
+        lib.update(make_sound(id="b", name="one"))
+
+
+def test_update_same_name_is_allowed() -> None:
+    lib = SoundLibrary([make_sound(id="a", name="one")])
+    updated = make_sound(id="a", name="one", volume=0.3)
+    lib.update(updated)
+    assert lib.find("a").volume == 0.3

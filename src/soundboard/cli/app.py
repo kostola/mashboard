@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import dataclasses
 import shutil
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
@@ -10,19 +12,28 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from soundboard.audio.devices import list_output_devices
 from soundboard.audio.player import Player
 from soundboard.audio.pygame_player import PygamePlayer
 from soundboard.config import Paths, default_paths
 from soundboard.core.library import (
     SoundAlreadyExistsError,
-    SoundLibrary,
     SoundNotFoundError,
 )
 from soundboard.core.models import Sound
+from soundboard.settings import (
+    Settings,
+    SettingsRepository,
+    TomlSettingsRepository,
+)
 from soundboard.storage.repository import LibraryRepository
 from soundboard.storage.toml_repository import TomlLibraryRepository
 
+PlayerFactory = Callable[..., Player]
+
 app = typer.Typer(help="Soundboard CLI — manage and play your sound library.")
+config_app = typer.Typer(help="View and change soundboard settings.")
+app.add_typer(config_app, name="config")
 console = Console()
 
 
@@ -30,7 +41,9 @@ console = Console()
 class Context:
     paths: Paths
     repository: LibraryRepository
-    player_factory: type[Player] | None
+    settings_repository: SettingsRepository
+    player_factory: PlayerFactory | None
+    device_lister: Callable[[], list[str]] = list_output_devices
 
 
 def _build_default_context() -> Context:
@@ -39,6 +52,7 @@ def _build_default_context() -> Context:
     return Context(
         paths=paths,
         repository=TomlLibraryRepository(paths.library_file),
+        settings_repository=TomlSettingsRepository(paths.settings_file),
         player_factory=PygamePlayer,
     )
 
@@ -63,6 +77,13 @@ def _copy_into_library(paths: Paths, source: Path, sound_id: str) -> Path:
     target = paths.sounds_dir / f"{sound_id}{source.suffix}"
     shutil.copy2(source, target)
     return target
+
+
+def _make_player(ctx: Context) -> Player:
+    if ctx.player_factory is None:
+        raise typer.Exit(code=1)
+    device = ctx.settings_repository.load().output_device
+    return ctx.player_factory(device_name=device)
 
 
 @app.command("add")
@@ -99,6 +120,76 @@ def add(
         raise typer.Exit(code=1) from e
     ctx.repository.save(library)
     console.print(f"[green]Added[/green] '{sound.name}' ([dim]{sound.id}[/dim])")
+
+
+@app.command("edit")
+def edit(
+    name: Annotated[str, typer.Argument(help="Sound name or id.")],
+    new_name: Annotated[str | None, typer.Option("--name", "-n", help="Rename.")] = None,
+    hotkey: Annotated[
+        str | None, typer.Option("--hotkey", "-k", help="Set the hotkey.")
+    ] = None,
+    clear_hotkey: Annotated[
+        bool, typer.Option("--clear-hotkey", help="Remove the hotkey.")
+    ] = False,
+    volume: Annotated[
+        float | None,
+        typer.Option("--volume", "-v", min=0.0, max=1.0, help="Set volume (0.0–1.0)."),
+    ] = None,
+    add_tag: Annotated[
+        list[str] | None, typer.Option("--add-tag", help="Add a tag (repeatable).")
+    ] = None,
+    remove_tag: Annotated[
+        list[str] | None, typer.Option("--remove-tag", help="Remove a tag (repeatable).")
+    ] = None,
+) -> None:
+    """Edit a sound's metadata in place."""
+    ctx = _context()
+    library = ctx.repository.load()
+    try:
+        sound = library.find(name)
+    except SoundNotFoundError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=1) from e
+
+    changes: dict[str, object] = {}
+    if new_name is not None:
+        if not new_name:
+            console.print("[red]--name cannot be empty[/red]")
+            raise typer.Exit(code=2)
+        changes["name"] = new_name
+    if clear_hotkey and hotkey is not None:
+        console.print("[red]Cannot combine --hotkey and --clear-hotkey[/red]")
+        raise typer.Exit(code=2)
+    if clear_hotkey:
+        changes["hotkey"] = None
+    elif hotkey is not None:
+        changes["hotkey"] = hotkey
+    if volume is not None:
+        changes["volume"] = volume
+    if add_tag or remove_tag:
+        tags = list(sound.tags)
+        for t in remove_tag or []:
+            if t in tags:
+                tags.remove(t)
+        for t in add_tag or []:
+            if t not in tags:
+                tags.append(t)
+        changes["tags"] = tuple(tags)
+
+    if not changes:
+        console.print("[yellow]Nothing to change. See `soundboard edit --help`.[/yellow]")
+        return
+
+    updated = dataclasses.replace(sound, **changes)
+    try:
+        library.update(updated)
+    except SoundAlreadyExistsError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=1) from e
+    ctx.repository.save(library)
+    diff = ", ".join(f"{k}={v!r}" for k, v in changes.items())
+    console.print(f"[green]Updated[/green] '{updated.name}' ({diff})")
 
 
 @app.command("remove")
@@ -156,7 +247,7 @@ def play(
     if ctx.player_factory is None:
         console.print("[red]No audio player configured.[/red]")
         raise typer.Exit(code=1)
-    player = ctx.player_factory()
+    player = _make_player(ctx)
     try:
         handle = player.play(sound)
         console.print(f"[green]Playing[/green] '{sound.name}'")
@@ -176,7 +267,7 @@ def stop() -> None:
     ctx = _context()
     if ctx.player_factory is None:
         return
-    player = ctx.player_factory()
+    player = _make_player(ctx)
     try:
         player.stop_all()
     finally:
@@ -188,13 +279,60 @@ def stop() -> None:
 def where() -> None:
     """Show config and data paths."""
     ctx = _context()
-    console.print(f"Library file: [bold]{ctx.paths.library_file}[/bold]")
-    console.print(f"Sounds dir:   [bold]{ctx.paths.sounds_dir}[/bold]")
+    console.print(f"Library file:  [bold]{ctx.paths.library_file}[/bold]")
+    console.print(f"Settings file: [bold]{ctx.paths.settings_file}[/bold]")
+    console.print(f"Sounds dir:    [bold]{ctx.paths.sounds_dir}[/bold]")
 
 
-def build_library(library: SoundLibrary) -> SoundLibrary:
-    """Convenience for tests/scripts that want a library to pre-populate."""
-    return library
+@app.command("devices")
+def devices() -> None:
+    """List available audio output devices."""
+    ctx = _context()
+    current = ctx.settings_repository.load().output_device
+    try:
+        names = ctx.device_lister()
+    except Exception as e:  # noqa: BLE001
+        console.print(f"[red]Could not enumerate devices:[/red] {e}")
+        raise typer.Exit(code=1) from e
+    if not names:
+        console.print("[dim]No output devices found.[/dim]")
+        return
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("")
+    table.add_column("Device name")
+    default_marker = "[green]*[/green]" if current is None else " "
+    table.add_row(default_marker, "[dim](system default)[/dim]")
+    for name in names:
+        marker = "[green]*[/green]" if name == current else " "
+        table.add_row(marker, name)
+    console.print(table)
+
+
+@config_app.command("show")
+def config_show() -> None:
+    """Show current settings."""
+    ctx = _context()
+    settings = ctx.settings_repository.load()
+    device = settings.output_device or "[dim](system default)[/dim]"
+    console.print(f"Output device: [bold]{device}[/bold]")
+
+
+@config_app.command("set-device")
+def config_set_device(
+    name: Annotated[
+        str | None,
+        typer.Argument(help='Device name (use "" or --clear for system default).'),
+    ] = None,
+    clear: Annotated[bool, typer.Option("--clear", help="Reset to system default.")] = False,
+) -> None:
+    """Set the audio output device used for playback."""
+    ctx = _context()
+    chosen: str | None = None if clear or not name else name
+    ctx.settings_repository.save(Settings(output_device=chosen))
+    if chosen is None:
+        console.print("[green]Output device[/green] -> system default")
+    else:
+        console.print(f"[green]Output device[/green] -> {chosen}")
 
 
 def main() -> None:

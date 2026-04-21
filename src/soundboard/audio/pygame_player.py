@@ -27,9 +27,14 @@ class _PygameHandle:
 
 
 class PygamePlayer:
-    def __init__(self) -> None:
+    def __init__(self, device_name: str | None = None) -> None:
         self._initialized = False
         self._cache: dict[str, MixerSound] = {}
+        self._device_name = device_name
+
+    @property
+    def device_name(self) -> str | None:
+        return self._device_name
 
     def _ensure_init(self) -> None:
         if self._initialized:
@@ -37,7 +42,10 @@ class PygamePlayer:
         os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
         import pygame
 
-        pygame.mixer.init()
+        if self._device_name:
+            pygame.mixer.init(devicename=self._device_name)
+        else:
+            pygame.mixer.init()
         self._initialized = True
 
     def play(self, sound: Sound) -> _PygameHandle:

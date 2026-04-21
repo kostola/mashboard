@@ -18,6 +18,10 @@ class Paths:
         return self.config_dir / "library.toml"
 
     @property
+    def settings_file(self) -> Path:
+        return self.config_dir / "settings.toml"
+
+    @property
     def sounds_dir(self) -> Path:
         return self.data_dir / "sounds"
 
