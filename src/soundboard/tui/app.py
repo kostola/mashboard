@@ -9,7 +9,7 @@ from textual.reactive import reactive
 from textual.widgets import Button, Footer, Header, Input, Static
 
 from soundboard.audio.player import Player
-from soundboard.audio.pygame_player import PygamePlayer
+from soundboard.audio.sounddevice_player import SoundDevicePlayer
 from soundboard.config import default_paths
 from soundboard.core.models import Sound
 from soundboard.settings import Settings, TomlSettingsRepository
@@ -68,11 +68,9 @@ class SoundboardApp(App[None]):
 
     def on_mount(self) -> None:
         self.title = "Soundboard"
-        self.sub_title = (
-            f"Output: {self._settings.output_device}"
-            if self._settings.output_device
-            else "Output: system default"
-        )
+        primary = self._settings.output_device or "system default"
+        monitor = self._settings.monitor_device or "off"
+        self.sub_title = f"Primary: {primary}  |  Monitor: {monitor}"
         self.run_worker(self._reload, exclusive=True, group="render")
 
     async def _reload(self) -> None:
@@ -170,7 +168,10 @@ def main() -> None:
     paths.ensure()
     repo = TomlLibraryRepository(paths.library_file)
     settings = TomlSettingsRepository(paths.settings_file).load()
-    player = PygamePlayer(device_name=settings.output_device)
+    devices: list[str | None] = [settings.output_device]
+    if settings.monitor_device is not None:
+        devices.append(settings.monitor_device)
+    player = SoundDevicePlayer(devices=devices)
     try:
         SoundboardApp(repo, player, settings).run()
     finally:

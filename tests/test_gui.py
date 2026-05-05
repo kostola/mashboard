@@ -29,11 +29,11 @@ class FakeHandle:
 
 
 class FakePlayer:
-    def __init__(self, device_name: str | None = None) -> None:
+    def __init__(self, devices: list[str | None] | None = None) -> None:
         self.played: list[Sound] = []
         self.stopped_all = False
         self.closed = False
-        self.device_name = device_name
+        self.devices: list[str | None] = list(devices) if devices is not None else [None]
 
     def play(self, sound: Sound) -> PlayHandle:
         self.played.append(sound)
@@ -119,7 +119,7 @@ def test_stop_all_triggers_player(
     assert player.stopped_all is True
 
 
-def test_audio_menu_lists_devices_and_marks_current(
+def test_primary_menu_lists_devices_and_marks_current(
     qtbot: QtBot, paths: Paths, populated_repo: TomlLibraryRepository
 ) -> None:
     settings_repo = InMemorySettingsRepository(Settings(output_device="VoiceMeeter Input (X)"))
@@ -131,9 +131,9 @@ def test_audio_menu_lists_devices_and_marks_current(
         device_lister=lambda: ["Speakers (X)", "VoiceMeeter Input (X)"],
     )
     qtbot.addWidget(window)
-    window._rebuild_audio_menu()  # type: ignore[attr-defined]
-    assert window._audio_menu is not None  # type: ignore[attr-defined]
-    actions = window._audio_menu.actions()  # type: ignore[attr-defined]
+    window._rebuild_primary_menu()  # type: ignore[attr-defined]
+    assert window._primary_menu is not None  # type: ignore[attr-defined]
+    actions = window._primary_menu.actions()  # type: ignore[attr-defined]
     labels = {a.text() for a in actions if a.isEnabled()}
     assert "&Use system default" in labels
     assert "Speakers (X)" in labels
@@ -142,15 +142,39 @@ def test_audio_menu_lists_devices_and_marks_current(
     assert checked == {"VoiceMeeter Input (X)"}
 
 
-def test_selecting_device_persists_and_rebuilds_player(
+def test_monitor_menu_lists_devices_and_marks_current(
+    qtbot: QtBot, paths: Paths, populated_repo: TomlLibraryRepository
+) -> None:
+    settings_repo = InMemorySettingsRepository(
+        Settings(output_device="Speakers (X)", monitor_device="Headphones (Y)")
+    )
+    window = MainWindow(
+        paths,
+        populated_repo,
+        FakePlayer(),
+        settings_repository=settings_repo,
+        device_lister=lambda: ["Speakers (X)", "Headphones (Y)"],
+    )
+    qtbot.addWidget(window)
+    window._rebuild_monitor_menu()  # type: ignore[attr-defined]
+    assert window._monitor_menu is not None  # type: ignore[attr-defined]
+    actions = window._monitor_menu.actions()  # type: ignore[attr-defined]
+    labels = {a.text() for a in actions if a.isEnabled()}
+    assert "&None (off)" in labels
+    assert "Headphones (Y)" in labels
+    checked = {a.text() for a in actions if a.isCheckable() and a.isChecked()}
+    assert checked == {"Headphones (Y)"}
+
+
+def test_selecting_primary_persists_and_rebuilds_player(
     qtbot: QtBot, paths: Paths, populated_repo: TomlLibraryRepository
 ) -> None:
     settings_repo = InMemorySettingsRepository()
-    built: list[str | None] = []
+    built: list[list[str | None]] = []
 
-    def factory(device_name: str | None = None) -> FakePlayer:
-        built.append(device_name)
-        return FakePlayer(device_name)
+    def factory(devices: list[str | None] | None = None) -> FakePlayer:
+        built.append(list(devices) if devices is not None else [None])
+        return FakePlayer(devices)
 
     window = MainWindow(
         paths,
@@ -162,14 +186,46 @@ def test_selecting_device_persists_and_rebuilds_player(
     )
     qtbot.addWidget(window)
 
-    window._set_device("VoiceMeeter Input (X)")  # type: ignore[attr-defined]
+    window._set_primary("VoiceMeeter Input (X)")  # type: ignore[attr-defined]
 
     assert settings_repo.load() == Settings(output_device="VoiceMeeter Input (X)")
-    assert built == ["VoiceMeeter Input (X)"]
+    assert built == [["VoiceMeeter Input (X)"]]
 
-    window._set_device(None)  # type: ignore[attr-defined]
+    window._set_primary(None)  # type: ignore[attr-defined]
     assert settings_repo.load() == Settings(output_device=None)
-    assert built == ["VoiceMeeter Input (X)", None]
+    assert built == [["VoiceMeeter Input (X)"], [None]]
+
+
+def test_selecting_monitor_persists_and_rebuilds_player(
+    qtbot: QtBot, paths: Paths, populated_repo: TomlLibraryRepository
+) -> None:
+    settings_repo = InMemorySettingsRepository(Settings(output_device="Speakers (X)"))
+    built: list[list[str | None]] = []
+
+    def factory(devices: list[str | None] | None = None) -> FakePlayer:
+        built.append(list(devices) if devices is not None else [None])
+        return FakePlayer(devices)
+
+    window = MainWindow(
+        paths,
+        populated_repo,
+        FakePlayer(),
+        settings_repository=settings_repo,
+        player_factory=factory,
+        device_lister=lambda: ["Speakers (X)", "Headphones (Y)"],
+    )
+    qtbot.addWidget(window)
+
+    window._set_monitor("Headphones (Y)")  # type: ignore[attr-defined]
+
+    assert settings_repo.load() == Settings(
+        output_device="Speakers (X)", monitor_device="Headphones (Y)"
+    )
+    assert built == [["Speakers (X)", "Headphones (Y)"]]
+
+    window._set_monitor(None)  # type: ignore[attr-defined]
+    assert settings_repo.load() == Settings(output_device="Speakers (X)")
+    assert built[-1] == ["Speakers (X)"]
 
 
 def test_import_adds_sound(

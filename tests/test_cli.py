@@ -31,12 +31,12 @@ class FakeHandle:
 class FakePlayer:
     last_instance: FakePlayer | None = None
 
-    def __init__(self, device_name: str | None = None) -> None:
+    def __init__(self, devices: list[str | None] | None = None) -> None:
         self.played: list[Sound] = []
         self.stopped_all = False
         self.closed = False
         self.handle = FakeHandle()
-        self.device_name = device_name
+        self.devices: list[str | None] = list(devices) if devices is not None else [None]
         FakePlayer.last_instance = self
 
     def play(self, sound: Sound) -> PlayHandle:
@@ -334,4 +334,67 @@ def test_play_uses_configured_device(
     r = runner.invoke(cli_module.app, ["play", "horn", "--no-wait"])
     assert r.exit_code == 0, r.stdout
     assert FakePlayer.last_instance is not None
-    assert FakePlayer.last_instance.device_name == "VoiceMeeter Input (Test)"
+    assert FakePlayer.last_instance.devices == ["VoiceMeeter Input (Test)"]
+
+
+def test_play_uses_primary_and_monitor_devices(
+    runner: CliRunner, tmp_path: Path, _isolated_context: InMemorySettingsRepository
+) -> None:
+    clip = _make_clip(tmp_path)
+    runner.invoke(cli_module.app, ["add", str(clip), "--name", "horn"])
+    _isolated_context.save(
+        Settings(output_device="Speakers (Test)", monitor_device="Headphones (Test)")
+    )
+
+    r = runner.invoke(cli_module.app, ["play", "horn", "--no-wait"])
+    assert r.exit_code == 0, r.stdout
+    assert FakePlayer.last_instance is not None
+    assert FakePlayer.last_instance.devices == [
+        "Speakers (Test)",
+        "Headphones (Test)",
+    ]
+
+
+def test_config_set_monitor_roundtrip(
+    runner: CliRunner, _isolated_context: InMemorySettingsRepository
+) -> None:
+    r = runner.invoke(cli_module.app, ["config", "set-monitor", "Headphones (Test)"])
+    assert r.exit_code == 0
+    assert _isolated_context.load() == Settings(monitor_device="Headphones (Test)")
+
+    r = runner.invoke(cli_module.app, ["config", "show"])
+    assert "Headphones (Test)" in r.stdout
+
+    r = runner.invoke(cli_module.app, ["config", "set-monitor", "--clear"])
+    assert r.exit_code == 0
+    assert _isolated_context.load() == Settings(monitor_device=None)
+
+
+def test_set_device_preserves_monitor(
+    runner: CliRunner, _isolated_context: InMemorySettingsRepository
+) -> None:
+    _isolated_context.save(Settings(monitor_device="Headphones (Test)"))
+    r = runner.invoke(cli_module.app, ["config", "set-device", "VoiceMeeter Input (Test)"])
+    assert r.exit_code == 0
+    assert _isolated_context.load() == Settings(
+        output_device="VoiceMeeter Input (Test)",
+        monitor_device="Headphones (Test)",
+    )
+
+
+def test_devices_marks_primary_and_monitor(
+    runner: CliRunner, _isolated_context: InMemorySettingsRepository
+) -> None:
+    _isolated_context.save(
+        Settings(
+            output_device="Speakers (Test)",
+            monitor_device="VoiceMeeter Input (Test)",
+        )
+    )
+    r = runner.invoke(cli_module.app, ["devices"])
+    assert r.exit_code == 0
+    lines = r.stdout.splitlines()
+    speakers_line = next(line for line in lines if "Speakers (Test)" in line)
+    voicemeeter_line = next(line for line in lines if "VoiceMeeter Input (Test)" in line)
+    assert "P" in speakers_line and "M" not in speakers_line
+    assert "M" in voicemeeter_line and "P" not in voicemeeter_line

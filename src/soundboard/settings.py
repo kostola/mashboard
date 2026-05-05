@@ -11,6 +11,7 @@ import tomli_w
 @dataclass(frozen=True, slots=True)
 class Settings:
     output_device: str | None = None
+    monitor_device: str | None = None
 
 
 class SettingsRepository(Protocol):
@@ -53,9 +54,15 @@ def _settings_to_dict(settings: Settings) -> dict[str, Any]:
     payload: dict[str, Any] = {}
     if settings.output_device is not None:
         payload["output_device"] = settings.output_device
+    if settings.monitor_device is not None:
+        payload["monitor_device"] = settings.monitor_device
     return payload
 
 
 def _settings_from_dict(data: dict[str, Any]) -> Settings:
     device = data.get("output_device")
-    return Settings(output_device=str(device) if device else None)
+    monitor = data.get("monitor_device")
+    return Settings(
+        output_device=str(device) if device else None,
+        monitor_device=str(monitor) if monitor else None,
+    )

@@ -15,7 +15,7 @@ from rich.table import Table
 from soundboard.audio.devices import list_output_devices
 from soundboard.audio.fetcher import Downloader, parse_timecode, ytdlp_download
 from soundboard.audio.player import Player
-from soundboard.audio.pygame_player import PygamePlayer
+from soundboard.audio.sounddevice_player import SoundDevicePlayer
 from soundboard.config import Paths, default_paths
 from soundboard.core.library import (
     SoundAlreadyExistsError,
@@ -55,7 +55,7 @@ def _build_default_context() -> Context:
         paths=paths,
         repository=TomlLibraryRepository(paths.library_file),
         settings_repository=TomlSettingsRepository(paths.settings_file),
-        player_factory=PygamePlayer,
+        player_factory=SoundDevicePlayer,
     )
 
 
@@ -84,8 +84,11 @@ def _copy_into_library(paths: Paths, source: Path, sound_id: str) -> Path:
 def _make_player(ctx: Context) -> Player:
     if ctx.player_factory is None:
         raise typer.Exit(code=1)
-    device = ctx.settings_repository.load().output_device
-    return ctx.player_factory(device_name=device)
+    settings = ctx.settings_repository.load()
+    devices: list[str | None] = [settings.output_device]
+    if settings.monitor_device is not None:
+        devices.append(settings.monitor_device)
+    return ctx.player_factory(devices=devices)
 
 
 @app.command("add")
@@ -346,7 +349,9 @@ def where() -> None:
 def devices() -> None:
     """List available audio output devices."""
     ctx = _context()
-    current = ctx.settings_repository.load().output_device
+    settings = ctx.settings_repository.load()
+    primary = settings.output_device
+    monitor = settings.monitor_device
     try:
         names = ctx.device_lister()
     except Exception as e:  # noqa: BLE001
@@ -355,14 +360,21 @@ def devices() -> None:
     if not names:
         console.print("[dim]No output devices found.[/dim]")
         return
+
+    def _marker(name: str | None) -> str:
+        flags = ""
+        if primary == name and (name is not None or primary is None):
+            flags += "P"
+        if monitor is not None and monitor == name:
+            flags += "M"
+        return f"[green]{flags}[/green]" if flags else " "
+
     table = Table(show_header=True, header_style="bold")
     table.add_column("")
     table.add_column("Device name")
-    default_marker = "[green]*[/green]" if current is None else " "
-    table.add_row(default_marker, "[dim](system default)[/dim]")
+    table.add_row(_marker(None), "[dim](system default)[/dim]")
     for name in names:
-        marker = "[green]*[/green]" if name == current else " "
-        table.add_row(marker, name)
+        table.add_row(_marker(name), name)
     console.print(table)
 
 
@@ -371,8 +383,10 @@ def config_show() -> None:
     """Show current settings."""
     ctx = _context()
     settings = ctx.settings_repository.load()
-    device = settings.output_device or "[dim](system default)[/dim]"
-    console.print(f"Output device: [bold]{device}[/bold]")
+    primary = settings.output_device or "[dim](system default)[/dim]"
+    monitor = settings.monitor_device or "[dim](off)[/dim]"
+    console.print(f"Output device:  [bold]{primary}[/bold]")
+    console.print(f"Monitor device: [bold]{monitor}[/bold]")
 
 
 @config_app.command("set-device")
@@ -383,14 +397,38 @@ def config_set_device(
     ] = None,
     clear: Annotated[bool, typer.Option("--clear", help="Reset to system default.")] = False,
 ) -> None:
-    """Set the audio output device used for playback."""
+    """Set the primary audio output device used for playback."""
     ctx = _context()
     chosen: str | None = None if clear or not name else name
-    ctx.settings_repository.save(Settings(output_device=chosen))
+    current = ctx.settings_repository.load()
+    ctx.settings_repository.save(
+        Settings(output_device=chosen, monitor_device=current.monitor_device)
+    )
     if chosen is None:
         console.print("[green]Output device[/green] -> system default")
     else:
         console.print(f"[green]Output device[/green] -> {chosen}")
+
+
+@config_app.command("set-monitor")
+def config_set_monitor(
+    name: Annotated[
+        str | None,
+        typer.Argument(help='Monitor device name (use "" or --clear to disable).'),
+    ] = None,
+    clear: Annotated[bool, typer.Option("--clear", help="Disable the monitor output.")] = False,
+) -> None:
+    """Set a second output device that mirrors playback (preview/monitor)."""
+    ctx = _context()
+    chosen: str | None = None if clear or not name else name
+    current = ctx.settings_repository.load()
+    ctx.settings_repository.save(
+        Settings(output_device=current.output_device, monitor_device=chosen)
+    )
+    if chosen is None:
+        console.print("[green]Monitor device[/green] -> off")
+    else:
+        console.print(f"[green]Monitor device[/green] -> {chosen}")
 
 
 def main() -> None:

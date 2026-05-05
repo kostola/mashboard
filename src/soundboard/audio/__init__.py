@@ -1,4 +1,4 @@
 from soundboard.audio.player import Player, PlayHandle
-from soundboard.audio.pygame_player import PygamePlayer
+from soundboard.audio.sounddevice_player import SoundDevicePlayer
 
-__all__ = ["PlayHandle", "Player", "PygamePlayer"]
+__all__ = ["PlayHandle", "Player", "SoundDevicePlayer"]

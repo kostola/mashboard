@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 
 from soundboard.audio.devices import list_output_devices
 from soundboard.audio.player import Player
-from soundboard.audio.pygame_player import PygamePlayer
+from soundboard.audio.sounddevice_player import SoundDevicePlayer
 from soundboard.config import Paths, default_paths
 from soundboard.core.library import (
     SoundAlreadyExistsError,
@@ -62,7 +62,7 @@ class MainWindow(QMainWindow):
         repository: LibraryRepository,
         player: Player,
         settings_repository: SettingsRepository | None = None,
-        player_factory: PlayerFactory = PygamePlayer,
+        player_factory: PlayerFactory = SoundDevicePlayer,
         device_lister: Callable[[], list[str]] = list_output_devices,
         parent: QWidget | None = None,
     ) -> None:
@@ -77,7 +77,10 @@ class MainWindow(QMainWindow):
         self._buttons: list[SoundButton] = []
         self._filter_text = ""
         self._audio_menu: QMenu | None = None
-        self._device_group: QActionGroup | None = None
+        self._primary_menu: QMenu | None = None
+        self._monitor_menu: QMenu | None = None
+        self._primary_group: QActionGroup | None = None
+        self._monitor_group: QActionGroup | None = None
 
         self.setWindowTitle("Soundboard")
         self.resize(720, 520)
@@ -133,59 +136,114 @@ class MainWindow(QMainWindow):
         sound_menu.addAction(reload_action)
 
         self._audio_menu = self.menuBar().addMenu("&Audio")
-        self._audio_menu.aboutToShow.connect(self._rebuild_audio_menu)
-        self._rebuild_audio_menu()
+        self._primary_menu = self._audio_menu.addMenu("&Output device")
+        self._monitor_menu = self._audio_menu.addMenu("&Monitor device")
+        self._primary_menu.aboutToShow.connect(self._rebuild_primary_menu)
+        self._monitor_menu.aboutToShow.connect(self._rebuild_monitor_menu)
+        self._rebuild_primary_menu()
+        self._rebuild_monitor_menu()
 
-    def _current_device(self) -> str | None:
+    def _current_settings(self) -> Settings:
         if self._settings_repository is None:
-            return None
-        return self._settings_repository.load().output_device
+            return Settings()
+        return self._settings_repository.load()
 
-    def _rebuild_audio_menu(self) -> None:
-        if self._audio_menu is None:
+    def _devices(self) -> list[str]:
+        try:
+            return self._device_lister()
+        except Exception:  # noqa: BLE001
+            return []
+
+    def _rebuild_primary_menu(self) -> None:
+        if self._primary_menu is None:
             return
-        self._audio_menu.clear()
-        self._device_group = QActionGroup(self)
-        self._device_group.setExclusive(True)
+        self._primary_menu.clear()
+        self._primary_group = QActionGroup(self)
+        self._primary_group.setExclusive(True)
 
-        current = self._current_device()
+        current = self._current_settings().output_device
         default_action = QAction("&Use system default", self)
         default_action.setCheckable(True)
         default_action.setChecked(current is None)
-        default_action.triggered.connect(lambda: self._set_device(None))
-        self._device_group.addAction(default_action)
-        self._audio_menu.addAction(default_action)
-        self._audio_menu.addSeparator()
+        default_action.triggered.connect(lambda: self._set_primary(None))
+        self._primary_group.addAction(default_action)
+        self._primary_menu.addAction(default_action)
+        self._primary_menu.addSeparator()
 
-        try:
-            devices = self._device_lister()
-        except Exception:  # noqa: BLE001
-            devices = []
+        devices = self._devices()
         if not devices:
             placeholder = QAction("(no devices found)", self)
             placeholder.setEnabled(False)
-            self._audio_menu.addAction(placeholder)
+            self._primary_menu.addAction(placeholder)
             return
         for name in devices:
             action = QAction(name, self)
             action.setCheckable(True)
             action.setChecked(name == current)
-            action.triggered.connect(lambda _checked=False, n=name: self._set_device(n))
-            self._device_group.addAction(action)
-            self._audio_menu.addAction(action)
+            action.triggered.connect(lambda _checked=False, n=name: self._set_primary(n))
+            self._primary_group.addAction(action)
+            self._primary_menu.addAction(action)
 
-    def _set_device(self, device_name: str | None) -> None:
-        if self._settings_repository is None:
+    def _rebuild_monitor_menu(self) -> None:
+        if self._monitor_menu is None:
             return
-        self._settings_repository.save(Settings(output_device=device_name))
+        self._monitor_menu.clear()
+        self._monitor_group = QActionGroup(self)
+        self._monitor_group.setExclusive(True)
+
+        current = self._current_settings().monitor_device
+        none_action = QAction("&None (off)", self)
+        none_action.setCheckable(True)
+        none_action.setChecked(current is None)
+        none_action.triggered.connect(lambda: self._set_monitor(None))
+        self._monitor_group.addAction(none_action)
+        self._monitor_menu.addAction(none_action)
+        self._monitor_menu.addSeparator()
+
+        devices = self._devices()
+        if not devices:
+            placeholder = QAction("(no devices found)", self)
+            placeholder.setEnabled(False)
+            self._monitor_menu.addAction(placeholder)
+            return
+        for name in devices:
+            action = QAction(name, self)
+            action.setCheckable(True)
+            action.setChecked(name == current)
+            action.triggered.connect(lambda _checked=False, n=name: self._set_monitor(n))
+            self._monitor_group.addAction(action)
+            self._monitor_menu.addAction(action)
+
+    def _rebuild_player(self, settings: Settings) -> None:
+        devices: list[str | None] = [settings.output_device]
+        if settings.monitor_device is not None:
+            devices.append(settings.monitor_device)
         old = self._player
         try:
-            self._player = self._player_factory(device_name=device_name)
+            self._player = self._player_factory(devices=devices)
         finally:
             with contextlib.suppress(Exception):
                 old.close()
+
+    def _set_primary(self, device_name: str | None) -> None:
+        if self._settings_repository is None:
+            return
+        current = self._settings_repository.load()
+        new = Settings(output_device=device_name, monitor_device=current.monitor_device)
+        self._settings_repository.save(new)
+        self._rebuild_player(new)
         label = device_name or "system default"
         self.statusBar().showMessage(f"Output device → {label}")
+
+    def _set_monitor(self, device_name: str | None) -> None:
+        if self._settings_repository is None:
+            return
+        current = self._settings_repository.load()
+        new = Settings(output_device=current.output_device, monitor_device=device_name)
+        self._settings_repository.save(new)
+        self._rebuild_player(new)
+        label = device_name or "off"
+        self.statusBar().showMessage(f"Monitor device → {label}")
 
     def _clear_grid(self) -> None:
         for btn in self._buttons:
@@ -314,7 +372,10 @@ def main() -> None:
     repository = TomlLibraryRepository(paths.library_file)
     settings_repository = TomlSettingsRepository(paths.settings_file)
     settings = settings_repository.load()
-    player = PygamePlayer(device_name=settings.output_device)
+    devices: list[str | None] = [settings.output_device]
+    if settings.monitor_device is not None:
+        devices.append(settings.monitor_device)
+    player = SoundDevicePlayer(devices=devices)
     app = QApplication.instance() or QApplication(sys.argv)
     window = MainWindow(
         paths=paths,

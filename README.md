@@ -1,6 +1,6 @@
 # Soundboard
 
-Cross-interface soundboard with a shared core: CLI, TUI (Textual), and desktop GUI (PySide6). Audio playback via `pygame-ce` (SDL2), library stored as TOML, cross-platform.
+Cross-interface soundboard with a shared core: CLI, TUI (Textual), and desktop GUI (PySide6). Audio playback via `sounddevice` (PortAudio) with optional dual-output, library stored as TOML, cross-platform.
 
 ## Install & run
 
@@ -15,14 +15,18 @@ uv run soundboard-gui           # desktop GUI
 
 ```bash
 uv run soundboard add path/to/clip.wav --name horn --hotkey ctrl+h --tag funny
+uv run soundboard edit horn --volume 0.5 --add-tag loud --clear-hotkey
 uv run soundboard list
 uv run soundboard play horn
+uv run soundboard stop
 uv run soundboard remove horn
 uv run soundboard where          # config/data paths
-uv run soundboard devices        # audio output devices (● = current)
+uv run soundboard devices        # audio output devices (P = primary, M = monitor)
 uv run soundboard config show
 uv run soundboard config set-device "VoiceMeeter Input (VB-Audio Voicemeeter VAIO)"
-uv run soundboard config set-device --clear    # back to system default
+uv run soundboard config set-device --clear     # back to system default
+uv run soundboard config set-monitor "Headphones (X)"   # mirror to a 2nd device
+uv run soundboard config set-monitor --clear     # disable monitor output
 ```
 
 ## Grabbing clips from YouTube
@@ -78,12 +82,29 @@ To make the null sink persistent, put the `pactl load-module` line in `~/.config
 
 For a more polished paid option, [Loopback](https://rogueamoeba.com/loopback/) from Rogue Amoeba is the macOS equivalent of VoiceMeeter.
 
+### Dual output (hear it locally + send to meeting)
+
+The soundboard can drive two output devices in parallel — a **primary** (`output_device`) and a **monitor** (`monitor_device`) — so a single `play` reaches both endpoints. Useful when:
+
+- You want a simple "headphones + USB speakers" setup with no virtual-mic stack.
+- You're using the routing tools above but don't want to wire the soundboard back into your monitor bus there (e.g. skip routing the VAIO strip to A1 on VoiceMeeter).
+- Driving two physical outputs simultaneously for a livestream/demo.
+
+```bash
+uv run soundboard config set-device "VoiceMeeter Input (VB-Audio Voicemeeter VAIO)"
+uv run soundboard config set-monitor "Headphones (X)"
+uv run soundboard config show
+uv run soundboard config set-monitor --clear   # back to single-output
+```
+
+`soundboard devices` marks the primary with **P** and the monitor with **M**. Note: the two streams are not sample-synchronous (independent PortAudio streams), so don't expect studio-grade routing — fine for soundboard clips, not a substitute for a real audio router.
+
 ## Project layout
 
 ```
 src/soundboard/
 ├── core/              ← Sound model + in-memory library
-├── audio/             ← Player Protocol + pygame-ce implementation + device enumeration
+├── audio/             ← Player Protocol + sounddevice implementation + device enumeration
 ├── storage/           ← Library TOML repository
 ├── settings.py        ← Settings (output device) TOML repository
 ├── config.py          ← platformdirs paths

@@ -8,10 +8,12 @@ authors = [
 ]
 requires-python = ">=3.14"
 dependencies = [
+    "numpy>=2.4.4",
     "platformdirs>=4.9.6",
-    "pygame-ce>=2.5.7",
     "pyside6>=6.11.0",
     "rich>=15.0.0",
+    "sounddevice>=0.5.5",
+    "soundfile>=0.13.1",
     "textual>=8.2.4",
     "tomli-w>=1.2.0",
     "typer>=0.24.1",
