@@ -8,18 +8,21 @@ from collections.abc import Callable
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QActionGroup, QColor, QKeySequence, QShortcut
+from PySide6.QtGui import QAction, QActionGroup, QColor, QKeySequence, QResizeEvent, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
     QGraphicsDropShadowEffect,
     QGridLayout,
+    QHBoxLayout,
+    QLabel,
     QLineEdit,
     QMainWindow,
     QMenu,
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSlider,
     QVBoxLayout,
     QWidget,
 )
@@ -47,11 +50,14 @@ from soundboard.settings import (
 from soundboard.storage.repository import LibraryRepository
 from soundboard.storage.toml_repository import TomlLibraryRepository
 
-GRID_COLUMNS = 4
-BUTTON_SIZE = 120
+DEFAULT_BUTTON_SIZE = 120
+MIN_BUTTON_SIZE = 64
+MAX_BUTTON_SIZE = 220
+GRID_SPACING = 16
+GRID_MARGIN = 16
 
 
-def _arcade_qss(cap_hex: str) -> str:
+def _arcade_qss(cap_hex: str, size: int) -> str:
     text = text_color_for(cap_hex)
     rim = darken(cap_hex, 0.5)
     bright = lighten(cap_hex, 0.45)
@@ -59,15 +65,16 @@ def _arcade_qss(cap_hex: str) -> str:
     deep = darken(cap_hex, 0.3)
     pressed_top = darken(cap_hex, 0.05)
     pressed_bottom = darken(cap_hex, 0.45)
+    font_pt = max(8, min(16, size // 10))
     return (
         "SoundButton {"
         f" background: qradialgradient(cx:0.5, cy:0.32, radius:0.95,"
         f" fx:0.5, fy:0.28, stop:0 {bright}, stop:0.55 {base}, stop:1 {deep});"
         f" border: 2px solid {rim};"
-        f" border-radius: {BUTTON_SIZE // 2}px;"
+        f" border-radius: {size // 2}px;"
         f" color: {text};"
         " font-weight: bold;"
-        " font-size: 12pt;"
+        f" font-size: {font_pt}pt;"
         " padding: 0;"
         "}"
         "SoundButton:pressed {"
@@ -79,19 +86,27 @@ def _arcade_qss(cap_hex: str) -> str:
 
 
 class SoundButton(QPushButton):
-    def __init__(self, sound: Sound, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        sound: Sound,
+        parent: QWidget | None = None,
+        size: int = DEFAULT_BUTTON_SIZE,
+    ) -> None:
         label = sound.name if not sound.hotkey else f"{sound.name}\n[{sound.hotkey}]"
         super().__init__(label, parent)
         self.sound = sound
         self.cap_color = effective_color(sound)
-        self.setFixedSize(BUTTON_SIZE, BUTTON_SIZE)
-        self.setStyleSheet(_arcade_qss(self.cap_color))
+        self.set_button_size(size)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         shadow = QGraphicsDropShadowEffect(self)
         shadow.setBlurRadius(16)
         shadow.setOffset(0, 4)
         shadow.setColor(QColor(0, 0, 0, 128))
         self.setGraphicsEffect(shadow)
+
+    def set_button_size(self, size: int) -> None:
+        self.setFixedSize(size, size)
+        self.setStyleSheet(_arcade_qss(self.cap_color, size))
 
 
 PlayerFactory = Callable[..., Player]
@@ -118,6 +133,7 @@ class MainWindow(QMainWindow):
         self._shortcuts: list[QShortcut] = []
         self._buttons: list[SoundButton] = []
         self._filter_text = ""
+        self._button_size = DEFAULT_BUTTON_SIZE
         self._audio_menu: QMenu | None = None
         self._primary_menu: QMenu | None = None
         self._monitor_menu: QMenu | None = None
@@ -131,10 +147,24 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(central)
         layout.setContentsMargins(8, 8, 8, 8)
 
+        top_row = QHBoxLayout()
+        top_row.setContentsMargins(0, 0, 0, 0)
+        top_row.setSpacing(8)
         self._search = QLineEdit(central)
         self._search.setPlaceholderText("Filter by name or tag…")
         self._search.textChanged.connect(self._on_filter_changed)
-        layout.addWidget(self._search)
+        top_row.addWidget(self._search, 1)
+
+        size_label = QLabel("Size", central)
+        top_row.addWidget(size_label)
+        self._size_slider = QSlider(Qt.Orientation.Horizontal, central)
+        self._size_slider.setMinimum(MIN_BUTTON_SIZE)
+        self._size_slider.setMaximum(MAX_BUTTON_SIZE)
+        self._size_slider.setValue(self._button_size)
+        self._size_slider.setFixedWidth(140)
+        self._size_slider.valueChanged.connect(self._on_size_changed)
+        top_row.addWidget(self._size_slider)
+        layout.addLayout(top_row)
 
         self._scroll = QScrollArea(central)
         self._scroll.setWidgetResizable(True)
@@ -142,10 +172,10 @@ class MainWindow(QMainWindow):
 
         self._grid_container = QWidget()
         self._grid = QGridLayout(self._grid_container)
-        self._grid.setContentsMargins(16, 16, 16, 16)
-        self._grid.setHorizontalSpacing(16)
-        self._grid.setVerticalSpacing(16)
-        self._grid.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self._grid.setContentsMargins(GRID_MARGIN, GRID_MARGIN, GRID_MARGIN, GRID_MARGIN)
+        self._grid.setHorizontalSpacing(GRID_SPACING)
+        self._grid.setVerticalSpacing(GRID_SPACING)
+        self._grid.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         self._scroll.setWidget(self._grid_container)
 
         self.setCentralWidget(central)
@@ -302,7 +332,7 @@ class MainWindow(QMainWindow):
         library = self._repository.load()
         self._clear_grid()
         for sound in library:
-            button = SoundButton(sound, self._grid_container)
+            button = SoundButton(sound, self._grid_container, size=self._button_size)
             button.clicked.connect(lambda _=False, s=sound: self._play(s))
             button.customContextMenuRequested.connect(
                 lambda pos, b=button: self._show_context_menu(b, pos)
@@ -318,18 +348,39 @@ class MainWindow(QMainWindow):
         self._apply_layout()
         self.statusBar().showMessage(f"{len(self._buttons)} sound(s) loaded")
 
+    def _columns(self) -> int:
+        viewport_w = self._scroll.viewport().width()
+        usable = max(0, viewport_w - 2 * GRID_MARGIN)
+        cell = self._button_size + GRID_SPACING
+        if cell <= 0:
+            return 1
+        return max(1, (usable + GRID_SPACING) // cell)
+
     def _apply_layout(self) -> None:
         while self._grid.count():
             self._grid.takeAt(0)
         needle = self._filter_text.strip().lower()
         visible = [b for b in self._buttons if _matches(b.sound, needle)]
+        visible_set = set(visible)
         for b in self._buttons:
-            b.setVisible(b in set(visible))
+            b.setVisible(b in visible_set)
+        cols = self._columns()
         for i, b in enumerate(visible):
-            self._grid.addWidget(b, i // GRID_COLUMNS, i % GRID_COLUMNS)
+            self._grid.addWidget(b, i // cols, i % cols)
 
     def _on_filter_changed(self, text: str) -> None:
         self._filter_text = text
+        self._apply_layout()
+
+    def _on_size_changed(self, size: int) -> None:
+        self._button_size = size
+        for button in self._buttons:
+            button.set_button_size(size)
+        self._apply_layout()
+        self.statusBar().showMessage(f"Button size → {size}px")
+
+    def resizeEvent(self, event: QResizeEvent) -> None:  # noqa: N802
+        super().resizeEvent(event)
         self._apply_layout()
 
     def _play(self, sound: Sound) -> None:
