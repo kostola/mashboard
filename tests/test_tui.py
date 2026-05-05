@@ -104,3 +104,17 @@ async def test_hotkey_action_plays_bound_sound(populated_repo: TomlLibraryReposi
         assert [s.name for s in player.played] == ["beep"]
 
 
+async def test_button_uses_explicit_color(tmp_path: Path) -> None:
+    repo = TomlLibraryRepository(tmp_path / "library.toml")
+    repo.save(
+        SoundLibrary(
+            [Sound(id="a", name="horn", path=tmp_path / "a.wav", color="#22aa55")]
+        )
+    )
+    app = SoundboardApp(repo, FakePlayer())
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        button = next(iter(app.query(SoundButton)))
+        assert button.cap_color == "#22aa55"
+
+

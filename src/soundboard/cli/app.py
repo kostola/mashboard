@@ -17,6 +17,7 @@ from soundboard.audio.fetcher import Downloader, parse_timecode, ytdlp_download
 from soundboard.audio.player import Player
 from soundboard.audio.sounddevice_player import SoundDevicePlayer
 from soundboard.config import Paths, default_paths
+from soundboard.core.colors import effective_color, parse_color
 from soundboard.core.library import (
     SoundAlreadyExistsError,
     SoundNotFoundError,
@@ -98,6 +99,9 @@ def add(
     hotkey: Annotated[str | None, typer.Option("--hotkey", "-k")] = None,
     tag: Annotated[list[str] | None, typer.Option("--tag", "-t", help="Repeatable.")] = None,
     volume: Annotated[float, typer.Option("--volume", "-v", min=0.0, max=1.0)] = 1.0,
+    color: Annotated[
+        str | None, typer.Option("--color", "-c", help="Hex (#rrggbb) or named colour.")
+    ] = None,
     link: Annotated[bool, typer.Option("--link", help="Reference in place, don't copy.")] = False,
 ) -> None:
     """Register a sound."""
@@ -106,6 +110,14 @@ def add(
     if not source.is_file():
         console.print(f"[red]File not found:[/red] {source}")
         raise typer.Exit(code=2)
+
+    color_hex: str | None = None
+    if color is not None:
+        try:
+            color_hex = parse_color(color)
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(code=2) from e
 
     library = ctx.repository.load()
     sound_id = uuid.uuid4().hex[:12]
@@ -117,6 +129,7 @@ def add(
         hotkey=hotkey,
         tags=tuple(tag or ()),
         volume=volume,
+        color=color_hex,
     )
     try:
         library.add(sound)
@@ -140,6 +153,9 @@ def fetch(
     hotkey: Annotated[str | None, typer.Option("--hotkey", "-k")] = None,
     tag: Annotated[list[str] | None, typer.Option("--tag", "-t", help="Repeatable.")] = None,
     volume: Annotated[float, typer.Option("--volume", "-v", min=0.0, max=1.0)] = 1.0,
+    color: Annotated[
+        str | None, typer.Option("--color", "-c", help="Hex (#rrggbb) or named colour.")
+    ] = None,
 ) -> None:
     """Download a clip from a URL (YouTube et al.) and register it."""
     ctx = _context()
@@ -155,6 +171,13 @@ def fetch(
     if start_sec is not None and end_sec is not None and start_sec >= end_sec:
         console.print("[red]start must be before end[/red]")
         raise typer.Exit(code=2)
+    color_hex: str | None = None
+    if color is not None:
+        try:
+            color_hex = parse_color(color)
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(code=2) from e
 
     try:
         downloaded = ctx.downloader(url, start_sec, end_sec, ctx.paths.sounds_dir)
@@ -173,6 +196,7 @@ def fetch(
         hotkey=hotkey,
         tags=tuple(tag or ()),
         volume=volume,
+        color=color_hex,
     )
     try:
         library.add(sound)
@@ -203,6 +227,13 @@ def edit(
     remove_tag: Annotated[
         list[str] | None, typer.Option("--remove-tag", help="Remove a tag (repeatable).")
     ] = None,
+    color: Annotated[
+        str | None,
+        typer.Option("--color", "-c", help="Set the colour (hex or named)."),
+    ] = None,
+    clear_color: Annotated[
+        bool, typer.Option("--clear-color", help="Remove the colour.")
+    ] = False,
 ) -> None:
     """Edit a sound's metadata in place."""
     ctx = _context()
@@ -226,6 +257,17 @@ def edit(
         changes["hotkey"] = None
     elif hotkey is not None:
         changes["hotkey"] = hotkey
+    if clear_color and color is not None:
+        console.print("[red]Cannot combine --color and --clear-color[/red]")
+        raise typer.Exit(code=2)
+    if clear_color:
+        changes["color"] = None
+    elif color is not None:
+        try:
+            changes["color"] = parse_color(color)
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(code=2) from e
     if volume is not None:
         changes["volume"] = volume
     if add_tag or remove_tag:
@@ -278,10 +320,13 @@ def list_sounds(
         console.print("[dim]No sounds.[/dim]")
         return
     table = Table(show_header=True, header_style="bold")
-    for col in ("Name", "Id", "Hotkey", "Tags", "Vol", "Path"):
+    for col in ("", "Name", "Id", "Hotkey", "Tags", "Vol", "Path"):
         table.add_column(col)
     for s in sounds:
+        cap = effective_color(s)
+        swatch = f"[{cap}]●[/{cap}]"
         table.add_row(
+            swatch,
             s.name,
             s.id,
             s.hotkey or "-",

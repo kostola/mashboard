@@ -232,6 +232,62 @@ def test_edit_no_options_is_noop(runner: CliRunner, tmp_path: Path) -> None:
     assert "Nothing to change" in r.stdout
 
 
+def test_add_with_named_color(runner: CliRunner, tmp_path: Path) -> None:
+    clip = _make_clip(tmp_path)
+    r = runner.invoke(cli_module.app, ["add", str(clip), "--name", "horn", "--color", "red"])
+    assert r.exit_code == 0, r.stdout
+    library = cli_module._context().repository.load()
+    assert library.find("horn").color == "#e74c3c"
+
+
+def test_add_with_hex_color(runner: CliRunner, tmp_path: Path) -> None:
+    clip = _make_clip(tmp_path)
+    r = runner.invoke(cli_module.app, ["add", str(clip), "--name", "horn", "--color", "#22aa55"])
+    assert r.exit_code == 0, r.stdout
+    library = cli_module._context().repository.load()
+    assert library.find("horn").color == "#22aa55"
+
+
+def test_add_invalid_color_errors(runner: CliRunner, tmp_path: Path) -> None:
+    clip = _make_clip(tmp_path)
+    r = runner.invoke(cli_module.app, ["add", str(clip), "--color", "taupe"])
+    assert r.exit_code == 2
+    assert "invalid color" in r.stdout
+
+
+def test_edit_set_and_clear_color(runner: CliRunner, tmp_path: Path) -> None:
+    clip = _make_clip(tmp_path)
+    runner.invoke(cli_module.app, ["add", str(clip), "--name", "horn"])
+
+    r = runner.invoke(cli_module.app, ["edit", "horn", "--color", "blue"])
+    assert r.exit_code == 0, r.stdout
+    library = cli_module._context().repository.load()
+    assert library.find("horn").color == "#3498db"
+
+    r = runner.invoke(cli_module.app, ["edit", "horn", "--clear-color"])
+    assert r.exit_code == 0, r.stdout
+    library = cli_module._context().repository.load()
+    assert library.find("horn").color is None
+
+
+def test_edit_conflicting_color_flags(runner: CliRunner, tmp_path: Path) -> None:
+    clip = _make_clip(tmp_path)
+    runner.invoke(cli_module.app, ["add", str(clip), "--name", "horn"])
+    r = runner.invoke(
+        cli_module.app, ["edit", "horn", "--color", "red", "--clear-color"]
+    )
+    assert r.exit_code == 2
+    assert "Cannot combine" in r.stdout
+
+
+def test_list_shows_color_swatch(runner: CliRunner, tmp_path: Path) -> None:
+    clip = _make_clip(tmp_path)
+    runner.invoke(cli_module.app, ["add", str(clip), "--name", "horn", "--color", "#22aa55"])
+    r = runner.invoke(cli_module.app, ["list"])
+    assert r.exit_code == 0
+    assert "●" in r.stdout
+
+
 def _install_downloader(
     runner_paths: Paths, settings_repo: InMemorySettingsRepository, downloader: object
 ) -> None:

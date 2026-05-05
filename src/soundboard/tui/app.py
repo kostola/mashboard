@@ -11,6 +11,7 @@ from textual.widgets import Button, Footer, Header, Input, Static
 from soundboard.audio.player import Player
 from soundboard.audio.sounddevice_player import SoundDevicePlayer
 from soundboard.config import default_paths
+from soundboard.core.colors import effective_color, text_color_for
 from soundboard.core.models import Sound
 from soundboard.settings import Settings, TomlSettingsRepository
 from soundboard.storage.repository import LibraryRepository
@@ -22,6 +23,10 @@ class SoundButton(Button):
         label = sound.name if not sound.hotkey else f"{sound.name}  [{sound.hotkey}]"
         super().__init__(label, classes="sound-button")
         self.sound = sound
+        cap = effective_color(sound)
+        self.cap_color = cap
+        self.styles.background = cap
+        self.styles.color = text_color_for(cap)
 
 
 class SoundboardApp(App[None]):

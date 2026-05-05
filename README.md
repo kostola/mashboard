@@ -14,8 +14,9 @@ uv run soundboard-gui           # desktop GUI
 ## CLI cheatsheet
 
 ```bash
-uv run soundboard add path/to/clip.wav --name horn --hotkey ctrl+h --tag funny
-uv run soundboard edit horn --volume 0.5 --add-tag loud --clear-hotkey
+uv run soundboard add path/to/clip.wav --name horn --hotkey ctrl+h --tag funny --color red
+uv run soundboard edit horn --volume 0.5 --add-tag loud --clear-hotkey --color "#22aa55"
+uv run soundboard edit horn --clear-color
 uv run soundboard list
 uv run soundboard play horn
 uv run soundboard stop
@@ -98,6 +99,10 @@ uv run soundboard config set-monitor --clear   # back to single-output
 ```
 
 `soundboard devices` marks the primary with **P** and the monitor with **M**. Note: the two streams are not sample-synchronous (independent PortAudio streams), so don't expect studio-grade routing — fine for soundboard clips, not a substitute for a real audio router.
+
+## Look and feel
+
+Each sound carries an optional colour (named — `red`, `blue`, `green`, `yellow`, `orange`, `purple`, `pink`, `cyan`, `white`, `black` — or hex `#rrggbb`). When unset, the colour is derived deterministically from the sound's id so the soundboard isn't a wall of identical buttons. Colours apply across the CLI (swatch column in `list`), the TUI (tinted button background), and the desktop GUI, where they render as round arcade-style caps with a domed gradient and press feedback. Set or change a colour with `--color` on `add` / `edit` / `fetch`; remove it with `edit --clear-color`.
 
 ## Project layout
 

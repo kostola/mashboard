@@ -33,3 +33,26 @@ def test_save_creates_parent_directory(tmp_path: Path) -> None:
     repo = TomlLibraryRepository(tmp_path / "nested" / "library.toml")
     repo.save(SoundLibrary())
     assert repo.path.exists()
+
+
+def test_color_round_trips_when_set(tmp_path: Path) -> None:
+    sounds = [
+        Sound(id="a", name="horn", path=Path("/clips/horn.wav"), color="#ff5733"),
+        Sound(id="b", name="beep", path=Path("/clips/beep.ogg")),
+    ]
+    repo = TomlLibraryRepository(tmp_path / "library.toml")
+    repo.save(SoundLibrary(sounds))
+
+    loaded = repo.load()
+    assert loaded.find("horn").color == "#ff5733"
+    assert loaded.find("beep").color is None
+
+
+def test_legacy_toml_without_color_loads_with_none(tmp_path: Path) -> None:
+    legacy = tmp_path / "library.toml"
+    legacy.write_text(
+        '[[sounds]]\nid = "a"\nname = "horn"\npath = "/clips/horn.wav"\nvolume = 1.0\ntags = []\n',
+        encoding="utf-8",
+    )
+    loaded = TomlLibraryRepository(legacy).load()
+    assert loaded.find("horn").color is None

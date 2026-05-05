@@ -8,10 +8,11 @@ from collections.abc import Callable
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QShortcut
+from PySide6.QtGui import QAction, QActionGroup, QColor, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
+    QGraphicsDropShadowEffect,
     QGridLayout,
     QLineEdit,
     QMainWindow,
@@ -27,6 +28,12 @@ from soundboard.audio.devices import list_output_devices
 from soundboard.audio.player import Player
 from soundboard.audio.sounddevice_player import SoundDevicePlayer
 from soundboard.config import Paths, default_paths
+from soundboard.core.colors import (
+    darken,
+    effective_color,
+    lighten,
+    text_color_for,
+)
 from soundboard.core.library import (
     SoundAlreadyExistsError,
     SoundNotFoundError,
@@ -41,6 +48,34 @@ from soundboard.storage.repository import LibraryRepository
 from soundboard.storage.toml_repository import TomlLibraryRepository
 
 GRID_COLUMNS = 4
+BUTTON_SIZE = 120
+
+
+def _arcade_qss(cap_hex: str) -> str:
+    text = text_color_for(cap_hex)
+    rim = darken(cap_hex, 0.5)
+    bright = lighten(cap_hex, 0.45)
+    base = cap_hex
+    deep = darken(cap_hex, 0.3)
+    pressed_top = darken(cap_hex, 0.05)
+    pressed_bottom = darken(cap_hex, 0.45)
+    return (
+        "SoundButton {"
+        f" background: qradialgradient(cx:0.5, cy:0.32, radius:0.95,"
+        f" fx:0.5, fy:0.28, stop:0 {bright}, stop:0.55 {base}, stop:1 {deep});"
+        f" border: 2px solid {rim};"
+        f" border-radius: {BUTTON_SIZE // 2}px;"
+        f" color: {text};"
+        " font-weight: bold;"
+        " font-size: 12pt;"
+        " padding: 0;"
+        "}"
+        "SoundButton:pressed {"
+        f" background: qradialgradient(cx:0.5, cy:0.5, radius:0.85,"
+        f" fx:0.5, fy:0.5, stop:0 {pressed_top}, stop:1 {pressed_bottom});"
+        " padding-top: 4px;"
+        "}"
+    )
 
 
 class SoundButton(QPushButton):
@@ -48,8 +83,15 @@ class SoundButton(QPushButton):
         label = sound.name if not sound.hotkey else f"{sound.name}\n[{sound.hotkey}]"
         super().__init__(label, parent)
         self.sound = sound
-        self.setMinimumHeight(64)
+        self.cap_color = effective_color(sound)
+        self.setFixedSize(BUTTON_SIZE, BUTTON_SIZE)
+        self.setStyleSheet(_arcade_qss(self.cap_color))
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(16)
+        shadow.setOffset(0, 4)
+        shadow.setColor(QColor(0, 0, 0, 128))
+        self.setGraphicsEffect(shadow)
 
 
 PlayerFactory = Callable[..., Player]
@@ -100,8 +142,9 @@ class MainWindow(QMainWindow):
 
         self._grid_container = QWidget()
         self._grid = QGridLayout(self._grid_container)
-        self._grid.setHorizontalSpacing(8)
-        self._grid.setVerticalSpacing(8)
+        self._grid.setContentsMargins(16, 16, 16, 16)
+        self._grid.setHorizontalSpacing(16)
+        self._grid.setVerticalSpacing(16)
         self._grid.setAlignment(Qt.AlignmentFlag.AlignTop)
         self._scroll.setWidget(self._grid_container)
 

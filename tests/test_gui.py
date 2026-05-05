@@ -245,6 +245,62 @@ def test_import_adds_sound(
     assert {b.sound.name for b in window.buttons} == {"new"}
 
 
+def test_button_uses_explicit_color_in_stylesheet(
+    qtbot: QtBot, paths: Paths, tmp_path: Path
+) -> None:
+    repo = TomlLibraryRepository(paths.library_file)
+    repo.save(
+        SoundLibrary(
+            [
+                Sound(
+                    id="a",
+                    name="horn",
+                    path=tmp_path / "a.wav",
+                    color="#22aa55",
+                )
+            ]
+        )
+    )
+    window = MainWindow(paths, repo, FakePlayer())
+    qtbot.addWidget(window)
+    button = window.buttons[0]
+    qss = button.styleSheet()
+    assert "#22aa55" in qss
+    assert button.cap_color == "#22aa55"
+    assert button.size().width() == 120
+    assert button.size().height() == 120
+    assert button.graphicsEffect() is not None
+
+
+def test_button_text_color_contrasts_with_cap(
+    qtbot: QtBot, paths: Paths, tmp_path: Path
+) -> None:
+    repo = TomlLibraryRepository(paths.library_file)
+    repo.save(
+        SoundLibrary(
+            [
+                Sound(
+                    id="light",
+                    name="bright",
+                    path=tmp_path / "l.wav",
+                    color="#ffffff",
+                ),
+                Sound(
+                    id="dark",
+                    name="deep",
+                    path=tmp_path / "d.wav",
+                    color="#000000",
+                ),
+            ]
+        )
+    )
+    window = MainWindow(paths, repo, FakePlayer())
+    qtbot.addWidget(window)
+    by_name = {b.sound.name: b.styleSheet() for b in window.buttons}
+    assert "color: #000000" in by_name["bright"]
+    assert "color: #ffffff" in by_name["deep"]
+
+
 def Qt_LeftButton() -> object:
     from PySide6.QtCore import Qt
 

@@ -41,10 +41,13 @@ def _sound_to_dict(sound: Sound) -> dict[str, Any]:
     }
     if sound.hotkey is not None:
         entry["hotkey"] = sound.hotkey
+    if sound.color is not None:
+        entry["color"] = sound.color
     return entry
 
 
 def _sound_from_dict(entry: dict[str, Any]) -> Sound:
+    color = entry.get("color")
     return Sound(
         id=str(entry["id"]),
         name=str(entry["name"]),
@@ -52,4 +55,5 @@ def _sound_from_dict(entry: dict[str, Any]) -> Sound:
         hotkey=entry.get("hotkey"),
         tags=tuple(entry.get("tags", [])),
         volume=float(entry.get("volume", 1.0)),
+        color=str(color).lower() if color else None,
     )
