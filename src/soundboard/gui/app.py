@@ -7,8 +7,16 @@ import uuid
 from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QActionGroup, QColor, QKeySequence, QResizeEvent, QShortcut
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import (
+    QAction,
+    QActionGroup,
+    QColor,
+    QKeySequence,
+    QResizeEvent,
+    QShortcut,
+    QShowEvent,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -60,11 +68,15 @@ GRID_MARGIN = 16
 def _arcade_qss(cap_hex: str, size: int) -> str:
     text = text_color_for(cap_hex)
     rim = darken(cap_hex, 0.5)
+    rim_hover = darken(cap_hex, 0.35)
     bright = lighten(cap_hex, 0.45)
+    bright_hover = lighten(cap_hex, 0.6)
     base = cap_hex
+    base_hover = lighten(cap_hex, 0.1)
     deep = darken(cap_hex, 0.3)
-    pressed_top = darken(cap_hex, 0.05)
-    pressed_bottom = darken(cap_hex, 0.45)
+    deep_hover = darken(cap_hex, 0.18)
+    pressed_top = darken(cap_hex, 0.18)
+    pressed_bottom = darken(cap_hex, 0.55)
     font_pt = max(8, min(16, size // 10))
     return (
         "SoundButton {"
@@ -77,10 +89,17 @@ def _arcade_qss(cap_hex: str, size: int) -> str:
         f" font-size: {font_pt}pt;"
         " padding: 0;"
         "}"
+        "SoundButton:hover {"
+        f" background: qradialgradient(cx:0.5, cy:0.30, radius:1.0,"
+        f" fx:0.5, fy:0.25, stop:0 {bright_hover}, stop:0.55 {base_hover},"
+        f" stop:1 {deep_hover});"
+        f" border: 2px solid {rim_hover};"
+        "}"
         "SoundButton:pressed {"
-        f" background: qradialgradient(cx:0.5, cy:0.5, radius:0.85,"
-        f" fx:0.5, fy:0.5, stop:0 {pressed_top}, stop:1 {pressed_bottom});"
-        " padding-top: 4px;"
+        f" background: qradialgradient(cx:0.5, cy:0.55, radius:0.8,"
+        f" fx:0.5, fy:0.55, stop:0 {pressed_top}, stop:1 {pressed_bottom});"
+        f" border: 2px solid {rim};"
+        " padding-top: 6px;"
         "}"
     )
 
@@ -98,15 +117,25 @@ class SoundButton(QPushButton):
         self.cap_color = effective_color(sound)
         self.set_button_size(size)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(16)
-        shadow.setOffset(0, 4)
-        shadow.setColor(QColor(0, 0, 0, 128))
-        self.setGraphicsEffect(shadow)
+        self._shadow = QGraphicsDropShadowEffect(self)
+        self._shadow.setBlurRadius(18)
+        self._shadow.setOffset(0, 5)
+        self._shadow.setColor(QColor(0, 0, 0, 140))
+        self.setGraphicsEffect(self._shadow)
+        self.pressed.connect(self._on_pressed)
+        self.released.connect(self._on_released)
 
     def set_button_size(self, size: int) -> None:
         self.setFixedSize(size, size)
         self.setStyleSheet(_arcade_qss(self.cap_color, size))
+
+    def _on_pressed(self) -> None:
+        self._shadow.setBlurRadius(6)
+        self._shadow.setOffset(0, 1)
+
+    def _on_released(self) -> None:
+        self._shadow.setBlurRadius(18)
+        self._shadow.setOffset(0, 5)
 
 
 PlayerFactory = Callable[..., Player]
@@ -133,7 +162,12 @@ class MainWindow(QMainWindow):
         self._shortcuts: list[QShortcut] = []
         self._buttons: list[SoundButton] = []
         self._filter_text = ""
-        self._button_size = DEFAULT_BUTTON_SIZE
+        initial_size: int | None = None
+        if settings_repository is not None:
+            initial_size = settings_repository.load().gui_button_size
+        if initial_size is None:
+            initial_size = DEFAULT_BUTTON_SIZE
+        self._button_size = max(MIN_BUTTON_SIZE, min(MAX_BUTTON_SIZE, initial_size))
         self._audio_menu: QMenu | None = None
         self._primary_menu: QMenu | None = None
         self._monitor_menu: QMenu | None = None
@@ -302,7 +336,11 @@ class MainWindow(QMainWindow):
         if self._settings_repository is None:
             return
         current = self._settings_repository.load()
-        new = Settings(output_device=device_name, monitor_device=current.monitor_device)
+        new = Settings(
+            output_device=device_name,
+            monitor_device=current.monitor_device,
+            gui_button_size=current.gui_button_size,
+        )
         self._settings_repository.save(new)
         self._rebuild_player(new)
         label = device_name or "system default"
@@ -312,7 +350,11 @@ class MainWindow(QMainWindow):
         if self._settings_repository is None:
             return
         current = self._settings_repository.load()
-        new = Settings(output_device=current.output_device, monitor_device=device_name)
+        new = Settings(
+            output_device=current.output_device,
+            monitor_device=device_name,
+            gui_button_size=current.gui_button_size,
+        )
         self._settings_repository.save(new)
         self._rebuild_player(new)
         label = device_name or "off"
@@ -377,11 +419,24 @@ class MainWindow(QMainWindow):
         for button in self._buttons:
             button.set_button_size(size)
         self._apply_layout()
+        if self._settings_repository is not None:
+            current = self._settings_repository.load()
+            self._settings_repository.save(
+                Settings(
+                    output_device=current.output_device,
+                    monitor_device=current.monitor_device,
+                    gui_button_size=size,
+                )
+            )
         self.statusBar().showMessage(f"Button size → {size}px")
 
     def resizeEvent(self, event: QResizeEvent) -> None:  # noqa: N802
         super().resizeEvent(event)
         self._apply_layout()
+
+    def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
+        super().showEvent(event)
+        QTimer.singleShot(0, self._apply_layout)
 
     def _play(self, sound: Sound) -> None:
         try:

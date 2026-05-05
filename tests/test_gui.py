@@ -272,6 +272,25 @@ def test_button_uses_explicit_color_in_stylesheet(
     assert button.graphicsEffect() is not None
 
 
+def test_button_size_loads_from_settings_and_persists_on_change(
+    qtbot: QtBot, paths: Paths, populated_repo: TomlLibraryRepository
+) -> None:
+    settings_repo = InMemorySettingsRepository(Settings(gui_button_size=160))
+    window = MainWindow(
+        paths,
+        populated_repo,
+        FakePlayer(),
+        settings_repository=settings_repo,
+    )
+    qtbot.addWidget(window)
+    assert window._button_size == 160  # type: ignore[attr-defined]
+    assert all(b.size().width() == 160 for b in window.buttons)
+
+    window._on_size_changed(96)  # type: ignore[attr-defined]
+    assert settings_repo.load().gui_button_size == 96
+    assert all(b.size().width() == 96 for b in window.buttons)
+
+
 def test_button_text_color_contrasts_with_cap(
     qtbot: QtBot, paths: Paths, tmp_path: Path
 ) -> None:

@@ -12,6 +12,7 @@ import tomli_w
 class Settings:
     output_device: str | None = None
     monitor_device: str | None = None
+    gui_button_size: int | None = None
 
 
 class SettingsRepository(Protocol):
@@ -56,13 +57,17 @@ def _settings_to_dict(settings: Settings) -> dict[str, Any]:
         payload["output_device"] = settings.output_device
     if settings.monitor_device is not None:
         payload["monitor_device"] = settings.monitor_device
+    if settings.gui_button_size is not None:
+        payload["gui_button_size"] = settings.gui_button_size
     return payload
 
 
 def _settings_from_dict(data: dict[str, Any]) -> Settings:
     device = data.get("output_device")
     monitor = data.get("monitor_device")
+    button_size = data.get("gui_button_size")
     return Settings(
         output_device=str(device) if device else None,
         monitor_device=str(monitor) if monitor else None,
+        gui_button_size=int(button_size) if button_size is not None else None,
     )

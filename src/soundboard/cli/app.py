@@ -447,7 +447,11 @@ def config_set_device(
     chosen: str | None = None if clear or not name else name
     current = ctx.settings_repository.load()
     ctx.settings_repository.save(
-        Settings(output_device=chosen, monitor_device=current.monitor_device)
+        Settings(
+            output_device=chosen,
+            monitor_device=current.monitor_device,
+            gui_button_size=current.gui_button_size,
+        )
     )
     if chosen is None:
         console.print("[green]Output device[/green] -> system default")
@@ -468,7 +472,11 @@ def config_set_monitor(
     chosen: str | None = None if clear or not name else name
     current = ctx.settings_repository.load()
     ctx.settings_repository.save(
-        Settings(output_device=current.output_device, monitor_device=chosen)
+        Settings(
+            output_device=current.output_device,
+            monitor_device=chosen,
+            gui_button_size=current.gui_button_size,
+        )
     )
     if chosen is None:
         console.print("[green]Monitor device[/green] -> off")

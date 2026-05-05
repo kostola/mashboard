@@ -32,6 +32,12 @@ def test_round_trip_monitor_only(tmp_path: Path) -> None:
     assert repo.load() == Settings(monitor_device="Headphones")
 
 
+def test_round_trip_button_size(tmp_path: Path) -> None:
+    repo = TomlSettingsRepository(tmp_path / "settings.toml")
+    repo.save(Settings(gui_button_size=160))
+    assert repo.load() == Settings(gui_button_size=160)
+
+
 def test_save_default_keeps_file_empty(tmp_path: Path) -> None:
     repo = TomlSettingsRepository(tmp_path / "settings.toml")
     repo.save(Settings(output_device=None))
