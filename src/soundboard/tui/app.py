@@ -27,7 +27,8 @@ PlayerFactory = Callable[..., Player]
 NO_DEVICE_VALUE = "__none__"
 
 SIZE_PRESETS: tuple[tuple[int, int], ...] = (
-    (6, 2),  # small
+    (6, 1),  # tiny — single-row stripes
+    (5, 3),  # small
     (4, 3),  # medium (default)
     (3, 5),  # large
     (2, 7),  # x-large
@@ -229,7 +230,13 @@ class SoundboardApp(App[None]):
         padding: 1 2;
         grid-rows: 3;
     }
-    SoundButton { width: 100%; height: 3; }
+    SoundButton {
+        width: 100%;
+        height: 3;
+        border: none;
+        padding: 0 1;
+        content-align: center middle;
+    }
     .empty { content-align: center middle; color: $text-muted; height: 100%; }
     #status { dock: bottom; height: 1; padding: 0 2; color: $accent; }
     """
