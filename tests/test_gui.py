@@ -9,7 +9,7 @@ from soundboard.audio.player import PlayHandle
 from soundboard.config import Paths
 from soundboard.core.library import SoundLibrary
 from soundboard.core.models import Sound
-from soundboard.gui.app import MainWindow
+from soundboard.gui.app import EditSoundDialog, MainWindow
 from soundboard.settings import InMemorySettingsRepository, Settings
 from soundboard.storage.toml_repository import TomlLibraryRepository
 
@@ -324,3 +324,46 @@ def Qt_LeftButton() -> object:
     from PySide6.QtCore import Qt
 
     return Qt.MouseButton.LeftButton
+
+
+def test_edit_dialog_round_trips_unchanged_sound(qtbot: QtBot, tmp_path: Path) -> None:
+    sound = Sound(
+        id="a",
+        name="horn",
+        path=tmp_path / "a.wav",
+        hotkey="ctrl+h",
+        tags=("funny",),
+        volume=0.5,
+        color="#22aa55",
+    )
+    dialog = EditSoundDialog(sound)
+    qtbot.addWidget(dialog)
+    assert dialog.updated_sound() == sound
+
+
+def test_edit_dialog_applies_name_volume_tags_color(qtbot: QtBot, tmp_path: Path) -> None:
+    sound = Sound(id="a", name="horn", path=tmp_path / "a.wav")
+    dialog = EditSoundDialog(sound)
+    qtbot.addWidget(dialog)
+    dialog._name_edit.setText("HORN!")  # type: ignore[attr-defined]
+    dialog._volume_spin.setValue(0.25)  # type: ignore[attr-defined]
+    dialog._tags_edit.setText("loud, brassy")  # type: ignore[attr-defined]
+    dialog._color = "#abcdef"  # type: ignore[attr-defined]
+
+    updated = dialog.updated_sound()
+    assert updated.name == "HORN!"
+    assert updated.volume == pytest.approx(0.25)
+    assert updated.tags == ("loud", "brassy")
+    assert updated.color == "#abcdef"
+    assert updated.id == sound.id
+    assert updated.path == sound.path
+
+
+def test_edit_dialog_blank_hotkey_clears(qtbot: QtBot, tmp_path: Path) -> None:
+    sound = Sound(id="a", name="horn", path=tmp_path / "a.wav", hotkey="ctrl+h")
+    dialog = EditSoundDialog(sound)
+    qtbot.addWidget(dialog)
+    dialog._hotkey_edit.setText("")  # type: ignore[attr-defined]
+    assert dialog.updated_sound().hotkey is None
+
+

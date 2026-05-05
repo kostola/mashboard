@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import shutil
 import sys
 import uuid
@@ -19,7 +20,12 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QApplication,
+    QColorDialog,
+    QDialog,
+    QDialogButtonBox,
+    QDoubleSpinBox,
     QFileDialog,
+    QFormLayout,
     QGraphicsDropShadowEffect,
     QGridLayout,
     QHBoxLayout,
@@ -136,6 +142,98 @@ class SoundButton(QPushButton):
     def _on_released(self) -> None:
         self._shadow.setBlurRadius(18)
         self._shadow.setOffset(0, 5)
+
+
+class EditSoundDialog(QDialog):
+    def __init__(self, sound: Sound, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(f"Edit '{sound.name}'")
+        self._sound = sound
+        self._color: str | None = sound.color
+
+        form = QFormLayout(self)
+        self._name_edit = QLineEdit(sound.name)
+        form.addRow("Name", self._name_edit)
+
+        self._hotkey_edit = QLineEdit(sound.hotkey or "")
+        self._hotkey_edit.setPlaceholderText("e.g. ctrl+h (blank to clear)")
+        form.addRow("Hotkey", self._hotkey_edit)
+
+        self._volume_spin = QDoubleSpinBox()
+        self._volume_spin.setRange(0.0, 1.0)
+        self._volume_spin.setSingleStep(0.05)
+        self._volume_spin.setDecimals(2)
+        self._volume_spin.setValue(sound.volume)
+        form.addRow("Volume", self._volume_spin)
+
+        color_row = QHBoxLayout()
+        self._swatch = QPushButton()
+        self._swatch.setFixedHeight(28)
+        self._swatch.setMinimumWidth(64)
+        self._swatch.clicked.connect(self._pick_color)
+        clear_btn = QPushButton("Reset to default")
+        clear_btn.clicked.connect(self._clear_color)
+        color_row.addWidget(self._swatch)
+        color_row.addWidget(clear_btn)
+        color_row.addStretch(1)
+        color_widget = QWidget()
+        color_widget.setLayout(color_row)
+        form.addRow("Color", color_widget)
+        self._update_swatch()
+
+        self._tags_edit = QLineEdit(", ".join(sound.tags))
+        self._tags_edit.setPlaceholderText("comma-separated")
+        form.addRow("Tags", self._tags_edit)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        form.addRow(buttons)
+
+    def _update_swatch(self) -> None:
+        if self._color is None:
+            self._swatch.setText("(default)")
+            self._swatch.setStyleSheet(
+                "border: 1px dashed #888; padding: 2px;"
+            )
+        else:
+            self._swatch.setText(self._color)
+            text = text_color_for(self._color)
+            self._swatch.setStyleSheet(
+                f"background: {self._color}; color: {text};"
+                " border: 1px solid #888; padding: 2px;"
+            )
+
+    def _pick_color(self) -> None:
+        initial = QColor(self._color or effective_color(self._sound))
+        chosen = QColorDialog.getColor(initial, self, "Pick a colour")
+        if chosen.isValid():
+            self._color = chosen.name().lower()
+            self._update_swatch()
+
+    def _clear_color(self) -> None:
+        self._color = None
+        self._update_swatch()
+
+    def updated_sound(self) -> Sound:
+        new_name = self._name_edit.text().strip() or self._sound.name
+        hotkey = self._hotkey_edit.text().strip() or None
+        tags_text = self._tags_edit.text().strip()
+        tags = (
+            tuple(t.strip() for t in tags_text.split(",") if t.strip())
+            if tags_text
+            else ()
+        )
+        return dataclasses.replace(
+            self._sound,
+            name=new_name,
+            hotkey=hotkey,
+            volume=float(self._volume_spin.value()),
+            tags=tags,
+            color=self._color,
+        )
 
 
 PlayerFactory = Callable[..., Player]
@@ -452,10 +550,32 @@ class MainWindow(QMainWindow):
 
     def _show_context_menu(self, button: SoundButton, pos: object) -> None:
         menu = QMenu(self)
+        edit_action = menu.addAction("Edit…")
         remove = menu.addAction("Remove from library")
         action = menu.exec(button.mapToGlobal(pos))  # type: ignore[arg-type]
         if action is remove:
             self._remove_sound(button.sound)
+        elif action is edit_action:
+            self._edit_sound(button)
+
+    def _edit_sound(self, button: SoundButton) -> None:
+        dialog = EditSoundDialog(button.sound, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        try:
+            updated = dialog.updated_sound()
+        except ValueError as e:
+            QMessageBox.warning(self, "Invalid value", str(e))
+            return
+        library = self._repository.load()
+        try:
+            library.update(updated)
+        except SoundAlreadyExistsError as e:
+            QMessageBox.warning(self, "Edit failed", str(e))
+            return
+        self._repository.save(library)
+        self._reload()
+        self.statusBar().showMessage(f"Updated '{updated.name}'")
 
     def _remove_sound(self, sound: Sound) -> None:
         library = self._repository.load()
