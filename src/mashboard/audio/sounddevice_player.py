@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import numpy as np
 
-from soundboard.core.models import Sound
+from mashboard.core.models import Sound
 
 FALLBACK_SAMPLE_RATE = 44100
 CHANNELS = 2
@@ -147,7 +147,7 @@ class SoundDevicePlayer:
         if named:
             import sounddevice as sd
 
-            from soundboard.audio.devices import _preferred_hostapi_index
+            from mashboard.audio.devices import _preferred_hostapi_index
 
             devices = list(sd.query_devices())
             hostapis = list(sd.query_hostapis())

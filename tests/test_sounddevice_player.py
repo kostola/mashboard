@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pytest
 
-from soundboard.core.models import Sound
+from mashboard.core.models import Sound
 
 if TYPE_CHECKING:
     pass
@@ -119,7 +119,7 @@ def test_two_devices_open_two_streams(
 ) -> None:
     _install_fake_sounddevice(monkeypatch)
     _install_fake_soundfile(monkeypatch)
-    from soundboard.audio.sounddevice_player import SoundDevicePlayer
+    from mashboard.audio.sounddevice_player import SoundDevicePlayer
 
     player = SoundDevicePlayer(devices=["Speakers (Test)", "Headphones (Test)"])
     try:
@@ -137,7 +137,7 @@ def test_play_feeds_both_streams(
 ) -> None:
     _install_fake_sounddevice(monkeypatch)
     _install_fake_soundfile(monkeypatch, n_samples=4)
-    from soundboard.audio.sounddevice_player import SoundDevicePlayer
+    from mashboard.audio.sounddevice_player import SoundDevicePlayer
 
     player = SoundDevicePlayer(devices=["Speakers (Test)", "Headphones (Test)"])
     try:
@@ -157,7 +157,7 @@ def test_stop_all_clears_voices_on_all_streams(
 ) -> None:
     _install_fake_sounddevice(monkeypatch)
     _install_fake_soundfile(monkeypatch, n_samples=1024)
-    from soundboard.audio.sounddevice_player import SoundDevicePlayer
+    from mashboard.audio.sounddevice_player import SoundDevicePlayer
 
     player = SoundDevicePlayer(devices=["Speakers (Test)", "Headphones (Test)"])
     try:
@@ -178,7 +178,7 @@ def test_unknown_device_raises_clear_error(
 ) -> None:
     _install_fake_sounddevice(monkeypatch, available_devices=["Speakers (Test)"])
     _install_fake_soundfile(monkeypatch)
-    from soundboard.audio.sounddevice_player import SoundDevicePlayer
+    from mashboard.audio.sounddevice_player import SoundDevicePlayer
 
     player = SoundDevicePlayer(devices=["Headphones (Missing)"])
     with pytest.raises(RuntimeError, match="Headphones \\(Missing\\)"):
@@ -190,7 +190,7 @@ def test_default_device_does_not_validate_against_list(
 ) -> None:
     _install_fake_sounddevice(monkeypatch, available_devices=["Ignored (Test)"])
     _install_fake_soundfile(monkeypatch)
-    from soundboard.audio.sounddevice_player import SoundDevicePlayer
+    from mashboard.audio.sounddevice_player import SoundDevicePlayer
 
     player = SoundDevicePlayer(devices=[None])
     try:
@@ -206,7 +206,7 @@ def test_close_closes_all_streams(
 ) -> None:
     _install_fake_sounddevice(monkeypatch)
     _install_fake_soundfile(monkeypatch)
-    from soundboard.audio.sounddevice_player import SoundDevicePlayer
+    from mashboard.audio.sounddevice_player import SoundDevicePlayer
 
     player = SoundDevicePlayer(devices=["Speakers (Test)", "Headphones (Test)"])
     player.play(_make_sound(tmp_path))

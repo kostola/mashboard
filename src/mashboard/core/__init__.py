@@ -1,9 +1,9 @@
-from soundboard.core.library import (
+from mashboard.core.library import (
     SoundAlreadyExistsError,
     SoundLibrary,
     SoundNotFoundError,
 )
-from soundboard.core.models import Sound
+from mashboard.core.models import Sound
 
 __all__ = [
     "Sound",

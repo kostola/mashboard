@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from soundboard.audio.devices import list_output_devices
+from mashboard.audio.devices import list_output_devices
 
 
 def test_list_output_devices_returns_strings() -> None:

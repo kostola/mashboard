@@ -5,13 +5,13 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from soundboard.audio.player import PlayHandle
-from soundboard.config import Paths
-from soundboard.core.library import SoundLibrary
-from soundboard.core.models import Sound
-from soundboard.gui.app import EditSoundDialog, MainWindow
-from soundboard.settings import InMemorySettingsRepository, Settings
-from soundboard.storage.toml_repository import TomlLibraryRepository
+from mashboard.audio.player import PlayHandle
+from mashboard.config import Paths
+from mashboard.core.library import SoundLibrary
+from mashboard.core.models import Sound
+from mashboard.gui.app import EditSoundDialog, MainWindow
+from mashboard.settings import InMemorySettingsRepository, Settings
+from mashboard.storage.toml_repository import TomlLibraryRepository
 
 if TYPE_CHECKING:
     from pytestqt.qtbot import QtBot

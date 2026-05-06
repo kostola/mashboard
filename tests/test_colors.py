@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from soundboard.core.colors import (
+from mashboard.core.colors import (
     NAMED_COLORS,
     PALETTE,
     darken,
@@ -14,7 +14,7 @@ from soundboard.core.colors import (
     parse_color,
     text_color_for,
 )
-from soundboard.core.models import Sound
+from mashboard.core.models import Sound
 
 
 def test_parse_color_accepts_hex_with_hash() -> None:

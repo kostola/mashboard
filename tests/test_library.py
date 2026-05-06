@@ -4,12 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from soundboard.core.library import (
+from mashboard.core.library import (
     SoundAlreadyExistsError,
     SoundLibrary,
     SoundNotFoundError,
 )
-from soundboard.core.models import Sound
+from mashboard.core.models import Sound
 
 
 def make_sound(**overrides: object) -> Sound:

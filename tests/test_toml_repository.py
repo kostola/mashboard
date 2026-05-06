@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from soundboard.core.library import SoundLibrary
-from soundboard.core.models import Sound
-from soundboard.storage.toml_repository import TomlLibraryRepository
+from mashboard.core.library import SoundLibrary
+from mashboard.core.models import Sound
+from mashboard.storage.toml_repository import TomlLibraryRepository
 
 
 def test_load_missing_file_returns_empty_library(tmp_path: Path) -> None:

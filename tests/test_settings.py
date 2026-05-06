@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from soundboard.settings import (
+from mashboard.settings import (
     InMemorySettingsRepository,
     Settings,
     TomlSettingsRepository,

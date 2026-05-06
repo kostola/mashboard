@@ -12,29 +12,29 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from soundboard.audio.devices import list_output_devices
-from soundboard.audio.fetcher import Downloader, parse_timecode, ytdlp_download
-from soundboard.audio.player import Player
-from soundboard.audio.sounddevice_player import SoundDevicePlayer
-from soundboard.config import Paths, default_paths
-from soundboard.core.colors import effective_color, parse_color
-from soundboard.core.library import (
+from mashboard.audio.devices import list_output_devices
+from mashboard.audio.fetcher import Downloader, parse_timecode, ytdlp_download
+from mashboard.audio.player import Player
+from mashboard.audio.sounddevice_player import SoundDevicePlayer
+from mashboard.config import Paths, default_paths
+from mashboard.core.colors import effective_color, parse_color
+from mashboard.core.library import (
     SoundAlreadyExistsError,
     SoundNotFoundError,
 )
-from soundboard.core.models import Sound
-from soundboard.settings import (
+from mashboard.core.models import Sound
+from mashboard.settings import (
     Settings,
     SettingsRepository,
     TomlSettingsRepository,
 )
-from soundboard.storage.repository import LibraryRepository
-from soundboard.storage.toml_repository import TomlLibraryRepository
+from mashboard.storage.repository import LibraryRepository
+from mashboard.storage.toml_repository import TomlLibraryRepository
 
 PlayerFactory = Callable[..., Player]
 
-app = typer.Typer(help="Soundboard CLI — manage and play your sound library.")
-config_app = typer.Typer(help="View and change soundboard settings.")
+app = typer.Typer(help="Mashboard CLI — manage and play your sound library.")
+config_app = typer.Typer(help="View and change mashboard settings.")
 app.add_typer(config_app, name="config")
 console = Console()
 
@@ -281,7 +281,7 @@ def edit(
         changes["tags"] = tuple(tags)
 
     if not changes:
-        console.print("[yellow]Nothing to change. See `soundboard edit --help`.[/yellow]")
+        console.print("[yellow]Nothing to change. See `mashboard edit --help`.[/yellow]")
         return
 
     updated = dataclasses.replace(sound, **changes)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Iterator
 
-from soundboard.core.models import Sound
+from mashboard.core.models import Sound
 
 
 class SoundNotFoundError(KeyError):

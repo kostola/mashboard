@@ -6,8 +6,8 @@ from typing import Any
 
 import tomli_w
 
-from soundboard.core.library import SoundLibrary
-from soundboard.core.models import Sound
+from mashboard.core.library import SoundLibrary
+from mashboard.core.models import Sound
 
 
 class TomlLibraryRepository:

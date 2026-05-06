@@ -5,7 +5,7 @@ import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from soundboard.core.models import Sound
+    from mashboard.core.models import Sound
 
 NAMED_COLORS: dict[str, str] = {
     "red": "#e74c3c",

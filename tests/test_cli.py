@@ -5,12 +5,12 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from soundboard.audio.player import PlayHandle
-from soundboard.cli import app as cli_module
-from soundboard.config import Paths
-from soundboard.core.models import Sound
-from soundboard.settings import InMemorySettingsRepository, Settings
-from soundboard.storage.toml_repository import TomlLibraryRepository
+from mashboard.audio.player import PlayHandle
+from mashboard.cli import app as cli_module
+from mashboard.config import Paths
+from mashboard.core.models import Sound
+from mashboard.settings import InMemorySettingsRepository, Settings
+from mashboard.storage.toml_repository import TomlLibraryRepository
 
 
 class FakeHandle:

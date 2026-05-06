@@ -5,18 +5,18 @@ from pathlib import Path
 import pytest
 from textual.widgets import Input, Select
 
-from soundboard.audio.player import PlayHandle
-from soundboard.core.library import SoundLibrary
-from soundboard.core.models import Sound
-from soundboard.settings import InMemorySettingsRepository, Settings
-from soundboard.storage.toml_repository import TomlLibraryRepository
-from soundboard.tui.app import (
+from mashboard.audio.player import PlayHandle
+from mashboard.core.library import SoundLibrary
+from mashboard.core.models import Sound
+from mashboard.settings import InMemorySettingsRepository, Settings
+from mashboard.storage.toml_repository import TomlLibraryRepository
+from mashboard.tui.app import (
     DEFAULT_SIZE_INDEX,
     NO_DEVICE_VALUE,
     SIZE_PRESETS,
     DeviceSettingsScreen,
     EditSoundScreen,
-    SoundboardApp,
+    MashboardApp,
     SoundButton,
 )
 
@@ -65,7 +65,7 @@ def populated_repo(tmp_path: Path) -> TomlLibraryRepository:
 
 
 async def test_renders_buttons_for_each_sound(populated_repo: TomlLibraryRepository) -> None:
-    app = SoundboardApp(populated_repo, FakePlayer())
+    app = MashboardApp(populated_repo, FakePlayer())
     async with app.run_test() as pilot:
         await pilot.pause()
         names = {b.sound.name for b in app.query(SoundButton)}
@@ -74,7 +74,7 @@ async def test_renders_buttons_for_each_sound(populated_repo: TomlLibraryReposit
 
 async def test_button_press_plays_sound(populated_repo: TomlLibraryRepository) -> None:
     player = FakePlayer()
-    app = SoundboardApp(populated_repo, player)
+    app = MashboardApp(populated_repo, player)
     async with app.run_test() as pilot:
         await pilot.pause()
         button = next(b for b in app.query(SoundButton) if b.sound.name == "horn")
@@ -84,7 +84,7 @@ async def test_button_press_plays_sound(populated_repo: TomlLibraryRepository) -
 
 
 async def test_search_filters_buttons(populated_repo: TomlLibraryRepository) -> None:
-    app = SoundboardApp(populated_repo, FakePlayer())
+    app = MashboardApp(populated_repo, FakePlayer())
     async with app.run_test() as pilot:
         await pilot.pause()
         app.filter_text = "loud"
@@ -97,7 +97,7 @@ async def test_search_filters_buttons(populated_repo: TomlLibraryRepository) -> 
 
 async def test_escape_stops_all(populated_repo: TomlLibraryRepository) -> None:
     player = FakePlayer()
-    app = SoundboardApp(populated_repo, player)
+    app = MashboardApp(populated_repo, player)
     async with app.run_test() as pilot:
         await pilot.pause()
         await pilot.press("escape")
@@ -107,7 +107,7 @@ async def test_escape_stops_all(populated_repo: TomlLibraryRepository) -> None:
 
 async def test_hotkey_action_plays_bound_sound(populated_repo: TomlLibraryRepository) -> None:
     player = FakePlayer()
-    app = SoundboardApp(populated_repo, player)
+    app = MashboardApp(populated_repo, player)
     async with app.run_test() as pilot:
         await pilot.pause()
         await app.run_action("play_id('b')")
@@ -121,7 +121,7 @@ async def test_button_uses_explicit_color(tmp_path: Path) -> None:
             [Sound(id="a", name="horn", path=tmp_path / "a.wav", color="#22aa55")]
         )
     )
-    app = SoundboardApp(repo, FakePlayer())
+    app = MashboardApp(repo, FakePlayer())
     async with app.run_test() as pilot:
         await pilot.pause()
         button = next(iter(app.query(SoundButton)))
@@ -132,7 +132,7 @@ async def test_resize_actions_change_size_and_persist(
     populated_repo: TomlLibraryRepository,
 ) -> None:
     settings_repo = InMemorySettingsRepository()
-    app = SoundboardApp(
+    app = MashboardApp(
         populated_repo,
         FakePlayer(),
         settings_repository=settings_repo,
@@ -156,7 +156,7 @@ async def test_resize_actions_change_size_and_persist(
 async def test_resize_clamps_to_range(
     populated_repo: TomlLibraryRepository,
 ) -> None:
-    app = SoundboardApp(populated_repo, FakePlayer())
+    app = MashboardApp(populated_repo, FakePlayer())
     async with app.run_test() as pilot:
         await pilot.pause()
         for _ in range(len(SIZE_PRESETS) + 2):
@@ -173,7 +173,7 @@ async def test_resize_clamps_to_range(
 async def test_initial_size_loaded_from_settings(
     populated_repo: TomlLibraryRepository,
 ) -> None:
-    app = SoundboardApp(
+    app = MashboardApp(
         populated_repo,
         FakePlayer(),
         settings=Settings(tui_button_size=2),
@@ -186,7 +186,7 @@ async def test_initial_size_loaded_from_settings(
 async def test_edit_action_without_focus_shows_status(
     populated_repo: TomlLibraryRepository,
 ) -> None:
-    app = SoundboardApp(populated_repo, FakePlayer())
+    app = MashboardApp(populated_repo, FakePlayer())
     async with app.run_test() as pilot:
         await pilot.pause()
         # Take focus away from any sound button.
@@ -200,7 +200,7 @@ async def test_edit_action_without_focus_shows_status(
 async def test_edit_action_opens_screen_for_focused_button(
     populated_repo: TomlLibraryRepository,
 ) -> None:
-    app = SoundboardApp(populated_repo, FakePlayer())
+    app = MashboardApp(populated_repo, FakePlayer())
     async with app.run_test() as pilot:
         await pilot.pause()
         button = next(b for b in app.query(SoundButton) if b.sound.name == "horn")
@@ -222,7 +222,7 @@ async def test_edit_screen_round_trips_unchanged(tmp_path: Path) -> None:
         color="#22aa55",
     )
     screen = EditSoundScreen(sound)
-    app = SoundboardApp(
+    app = MashboardApp(
         TomlLibraryRepository(tmp_path / "unused.toml"), FakePlayer()
     )
     async with app.run_test() as pilot:
@@ -234,7 +234,7 @@ async def test_edit_screen_round_trips_unchanged(tmp_path: Path) -> None:
 async def test_edit_screen_applies_changes_via_action(tmp_path: Path) -> None:
     repo = TomlLibraryRepository(tmp_path / "library.toml")
     repo.save(SoundLibrary([Sound(id="a", name="horn", path=tmp_path / "a.wav")]))
-    app = SoundboardApp(repo, FakePlayer())
+    app = MashboardApp(repo, FakePlayer())
     async with app.run_test() as pilot:
         await pilot.pause()
         button = next(b for b in app.query(SoundButton) if b.sound.name == "horn")
@@ -258,7 +258,7 @@ async def test_edit_screen_applies_changes_via_action(tmp_path: Path) -> None:
 async def test_devices_action_opens_screen(
     populated_repo: TomlLibraryRepository,
 ) -> None:
-    app = SoundboardApp(
+    app = MashboardApp(
         populated_repo,
         FakePlayer(),
         device_lister=lambda: ["Speakers (Test)", "Headphones (Test)"],
@@ -280,7 +280,7 @@ async def test_device_screen_persists_selection_and_rebuilds(
         rebuilt.append(list(devices) if devices is not None else [None])
         return FakePlayer()
 
-    app = SoundboardApp(
+    app = MashboardApp(
         populated_repo,
         FakePlayer(),
         settings_repository=settings_repo,
@@ -307,7 +307,7 @@ async def test_device_screen_cancel_does_not_persist(
     populated_repo: TomlLibraryRepository,
 ) -> None:
     settings_repo = InMemorySettingsRepository(Settings(output_device="Speakers (Test)"))
-    app = SoundboardApp(
+    app = MashboardApp(
         populated_repo,
         FakePlayer(),
         settings_repository=settings_repo,
@@ -331,7 +331,7 @@ async def test_device_screen_default_sentinel_clears_to_none(
     settings_repo = InMemorySettingsRepository(
         Settings(output_device="Speakers (Test)", monitor_device="Headphones (Test)")
     )
-    app = SoundboardApp(
+    app = MashboardApp(
         populated_repo,
         FakePlayer(),
         settings_repository=settings_repo,

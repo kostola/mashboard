@@ -41,28 +41,28 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from soundboard.audio.devices import list_output_devices
-from soundboard.audio.player import Player
-from soundboard.audio.sounddevice_player import SoundDevicePlayer
-from soundboard.config import Paths, default_paths
-from soundboard.core.colors import (
+from mashboard.audio.devices import list_output_devices
+from mashboard.audio.player import Player
+from mashboard.audio.sounddevice_player import SoundDevicePlayer
+from mashboard.config import Paths, default_paths
+from mashboard.core.colors import (
     darken,
     effective_color,
     lighten,
     text_color_for,
 )
-from soundboard.core.library import (
+from mashboard.core.library import (
     SoundAlreadyExistsError,
     SoundNotFoundError,
 )
-from soundboard.core.models import Sound
-from soundboard.settings import (
+from mashboard.core.models import Sound
+from mashboard.settings import (
     Settings,
     SettingsRepository,
     TomlSettingsRepository,
 )
-from soundboard.storage.repository import LibraryRepository
-from soundboard.storage.toml_repository import TomlLibraryRepository
+from mashboard.storage.repository import LibraryRepository
+from mashboard.storage.toml_repository import TomlLibraryRepository
 
 DEFAULT_BUTTON_SIZE = 120
 MIN_BUTTON_SIZE = 64
@@ -272,7 +272,7 @@ class MainWindow(QMainWindow):
         self._primary_group: QActionGroup | None = None
         self._monitor_group: QActionGroup | None = None
 
-        self.setWindowTitle("Soundboard")
+        self.setWindowTitle("Mashboard")
         self.resize(720, 520)
 
         central = QWidget(self)

@@ -1,12 +1,29 @@
 [project]
-name = "soundboard"
+name = "mashboard"
 version = "0.1.0"
 description = "Cross-interface soundboard (CLI, TUI, desktop GUI) with a shared audio/storage core."
 readme = "README.md"
 authors = [
-    { name = "Alessandro Costa", email = "alessandro.costa@ferrari.com" }
+    { name = "Alessandro Costa", email = "kostola@pm.me" }
 ]
-requires-python = ">=3.14"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+keywords = ["soundboard", "audio", "arcade", "cli", "tui", "gui", "meeting"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Environment :: X11 Applications :: Qt",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Multimedia :: Sound/Audio :: Players",
+]
 dependencies = [
     "numpy>=2.4.4",
     "platformdirs>=4.9.6",
@@ -21,9 +38,9 @@ dependencies = [
 ]
 
 [project.scripts]
-soundboard = "soundboard.cli.app:main"
-soundboard-tui = "soundboard.tui.app:main"
-soundboard-gui = "soundboard.gui.app:main"
+mashboard = "mashboard.cli.app:main"
+mashboard-tui = "mashboard.tui.app:main"
+mashboard-gui = "mashboard.gui.app:main"
 
 [build-system]
 requires = ["uv_build>=0.11.5,<0.12.0"]
@@ -41,7 +58,7 @@ dev = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py314"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]
@@ -53,4 +70,4 @@ asyncio_mode = "auto"
 
 [tool.mypy]
 strict = true
-python_version = "3.14"
+python_version = "3.12"

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from platformdirs import user_config_dir, user_data_dir
 
-APP_NAME = "soundboard"
+APP_NAME = "mashboard"
 
 
 @dataclass(frozen=True, slots=True)

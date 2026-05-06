@@ -12,16 +12,16 @@ from textual.reactive import reactive
 from textual.screen import ModalScreen
 from textual.widgets import Button, Footer, Header, Input, Label, Select, Static
 
-from soundboard.audio.devices import list_output_devices
-from soundboard.audio.player import Player
-from soundboard.audio.sounddevice_player import SoundDevicePlayer
-from soundboard.config import default_paths
-from soundboard.core.colors import effective_color, parse_color, text_color_for
-from soundboard.core.library import SoundAlreadyExistsError
-from soundboard.core.models import Sound
-from soundboard.settings import Settings, SettingsRepository, TomlSettingsRepository
-from soundboard.storage.repository import LibraryRepository
-from soundboard.storage.toml_repository import TomlLibraryRepository
+from mashboard.audio.devices import list_output_devices
+from mashboard.audio.player import Player
+from mashboard.audio.sounddevice_player import SoundDevicePlayer
+from mashboard.config import default_paths
+from mashboard.core.colors import effective_color, parse_color, text_color_for
+from mashboard.core.library import SoundAlreadyExistsError
+from mashboard.core.models import Sound
+from mashboard.settings import Settings, SettingsRepository, TomlSettingsRepository
+from mashboard.storage.repository import LibraryRepository
+from mashboard.storage.toml_repository import TomlLibraryRepository
 
 PlayerFactory = Callable[..., Player]
 NO_DEVICE_VALUE = "__none__"
@@ -220,7 +220,7 @@ class DeviceSettingsScreen(ModalScreen[Settings | None]):
         self.dismiss(None)
 
 
-class SoundboardApp(App[None]):
+class MashboardApp(App[None]):
     CSS = """
     Screen { layout: vertical; }
     #search { dock: top; margin: 1 2; }
@@ -280,7 +280,7 @@ class SoundboardApp(App[None]):
         yield Footer()
 
     def on_mount(self) -> None:
-        self.title = "Soundboard"
+        self.title = "Mashboard"
         primary = self._settings.output_device or "system default"
         monitor = self._settings.monitor_device or "off"
         self.sub_title = f"Primary: {primary}  |  Monitor: {monitor}"
@@ -479,7 +479,7 @@ def main() -> None:
     if settings.monitor_device is not None:
         devices.append(settings.monitor_device)
     player = SoundDevicePlayer(devices=devices)
-    app = SoundboardApp(
+    app = MashboardApp(
         repo,
         player,
         settings,
